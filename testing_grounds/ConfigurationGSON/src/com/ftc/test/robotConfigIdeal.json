@@ -1,0 +1,20 @@
+{
+	"LEFT_COOP":{
+        "STRAIGHT":{
+            "distance":24
+        },
+        "TURN":{
+            "degrees":90,
+            "power":1.0
+        }
+    },
+    "RIGHT_COOP":{
+        "STRAIGHT":{
+            "distance":24
+        },
+        "TURN":{
+            "degrees":90,
+            "power":1.0
+        }
+    }
+}
