@@ -42,8 +42,6 @@ import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.util.ElapsedTime;
 import com.qualcomm.robotcore.util.Range;
 
-import org.firstinspires.ftc.robotcore.external.navigation.Orientation;
-
 
 /**
  * This file contains an minimal example of a Linear "OpMode". An OpMode is a 'program' that runs in either
@@ -75,20 +73,23 @@ public class LCHSTeleOp extends LinearOpMode {
 
     private static final double TURN_SENSITIVITY = 0.5;
     private static final double BOOM_SENSITIVITY = 0.5;
+    private static final double TILT_SENSITIVITY = 1.0;
+    private static final double INTAKE_SENSITIVITY = 0.5;
+
     private static final double TURN_FINE_TUNE_MULT = 0.5;
     private static final double STRAFE_FINE_TUNE_MULT = 0.5;
 
     private static final double TILT_AUTOMOVE_POWER = 0.5;
     private static final double BOOM_AUTOMOVE_POWER = 0.25;
 
-    private static final int TILT_OUTTAKE_POSITION = 2720;
-    private static final int BOOM_OUTTAKE_POSITION = -1624;
+    private static final int TILT_OUTTAKE_POSITION = 2750;
+    private static final int BOOM_OUTTAKE_POSITION = -1800;
 
-    private static final int TILT_HOOK_POSITION = 3730;
+    private static final int TILT_HOOK_POSITION = 4300;
     private static final int BOOM_HOOK_POSITION = -700;
 
-    private static final int TILT_UPPER_BOUNDARY = 8500;
-    private static final int TILT_LOWER_BOUNDARY = 0;
+    private static final int TILT_UPPER_LIMIT = 8500;
+    private static final int TILT_LOWER_LIMIT = 0;
 
     @Override
     public void runOpMode() {
@@ -188,11 +189,12 @@ public class LCHSTeleOp extends LinearOpMode {
                 boolean gyroTurnOff = gamepad1.y;
 
                 // ---------- DRIVER 2 INPUT ----------
+                // 11/29/18 reduce intake/outtake power; increase tilt power
                 double boom = gamepad2.left_stick_y * BOOM_SENSITIVITY;
                 double tilt = -gamepad2.right_stick_y;
 
-                double intake = gamepad2.right_trigger;
-                double outtake = gamepad2.left_trigger;
+                double intake = gamepad2.right_trigger * INTAKE_SENSITIVITY;
+                double outtake = gamepad2.left_trigger * INTAKE_SENSITIVITY;
                 boolean gateOpen = gamepad2.left_bumper;
                 boolean gateClose = gamepad2.right_bumper;
 
@@ -296,15 +298,21 @@ public class LCHSTeleOp extends LinearOpMode {
                     // Calculate needed power adjust depending on whether going with/against gravity
                     int currentTilt = robot.tilt.getCurrentPosition();
                     int clickDistanceToVertical = Math.abs(LCHSHardwareMap.TILT_VERTICAL_POSITION - currentTilt);
-                    int tiltRange = Math.abs(TILT_UPPER_BOUNDARY - TILT_LOWER_BOUNDARY);
+                    //int tiltRange = Math.abs(TILT_UPPER_LIMIT - TILT_LOWER_LIMIT);
                     boolean goingUp = (tilt > 0.0 && currentTilt < LCHSHardwareMap.TILT_VERTICAL_POSITION) ||
                                       (tilt < 0.0 && currentTilt > LCHSHardwareMap.TILT_VERTICAL_POSITION);
-
+                    /*
                     if (goingUp && clickDistanceToVertical > tiltRange * 0.02) { // further than 2% from vertical
                         if (clickDistanceToVertical > tiltRange * 0.3) tiltPowerAdjustMultiplier = 1.0;
                         else if (clickDistanceToVertical > tiltRange * 0.1) tiltPowerAdjustMultiplier = 0.8;
                         else tiltPowerAdjustMultiplier = 0.6;
-                    } else tiltPowerAdjustMultiplier = 0.4; // else going down, low power
+                    } else tiltPowerAdjustMultiplier = 0.5; // else going down, low power
+                    */
+
+                    if (goingUp) {
+                        //**
+                        tiltPowerAdjustMultiplier = clickDistanceToVertical/LCHSHardwareMap.TILT_VERTICAL_POSITION * TILT_SENSITIVITY;
+                    } else tiltPowerAdjustMultiplier = 0.6; // else going down, low power
 
                     robot.tilt.setPower(tilt * tiltPowerAdjustMultiplier);
                 }

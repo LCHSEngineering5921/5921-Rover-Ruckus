@@ -57,7 +57,7 @@ import java.util.Locale;
  * @see <a href="http://www.adafruit.com/products/2472">Adafruit IMU</a>
  */
 @TeleOp(name = "LCHSAcceleration", group = "Sensor")
-//@Disabled                            // Comment this out to add to the opmode list
+@Disabled                            // Comment this out to add to the opmode list
 public class LCHSAcceleration extends LinearOpMode
     {
     //----------------------------------------------------------------------------------------------
@@ -112,7 +112,9 @@ public class LCHSAcceleration extends LinearOpMode
         while (opModeIsActive()) {
 
             // ---------- DRIVER 1 INPUT ----------
+            // Snap Forward
             double driveX = -gamepad1.right_stick_x * DRIVE_SENSITIVITY;
+            if (Math.abs(gamepad1.right_stick_x) < 0.2) driveX = 0;
             double driveY = -gamepad1.right_stick_y * DRIVE_SENSITIVITY;
             double turn = gamepad1.left_stick_x * DRIVE_SENSITIVITY;
 
@@ -132,6 +134,9 @@ public class LCHSAcceleration extends LinearOpMode
                     " Y: " + imu.getLinearAcceleration().yAccel);
             RobotLog.dd(TAG, "Overall Acceleration | X: " + imu.getOverallAcceleration().xAccel +
                     " Y: " + imu.getOverallAcceleration().yAccel);
+
+            telemetry.addData("Drive X", driveX);
+            telemetry.addData("Drive Y", driveY);
             telemetry.update();
         }
     }

@@ -361,14 +361,14 @@ public class LCHSAuto {
 
                     // Now make an adjustment to the desired heading depending on the signs of the
                     // requested turn and the normalized turn.
-                    if ((turnDegrees != 0) && (normalizedTurn != 0) && (unnormalizedTurn != 0) && ((normalizedTurn * unnormalizedTurn) < 0.0f)) {
-                        // Use unnormalized desired heading.
+                   // if ((turnDegrees != 0) && (normalizedTurn != 0) && (unnormalizedTurn != 0) && ((normalizedTurn * unnormalizedTurn) < 0.0f)) {
+                        //** ALWAYS Use unnormalized desired heading.
                         RobotLog.dd(TAG, "Turn in requested direction " + unnormalizedTurn);
                         gyroTurnFull(turnPower, P_TURN_COEFF, desiredHeading, false);
-                    } else {
-                        RobotLog.dd(TAG, "Turn in requested direction = normalized turn");
-                        gyroTurnFull(turnPower, P_TURN_COEFF, desiredHeading, true);
-                    }
+                   // } else {
+                    //    RobotLog.dd(TAG, "Turn in requested direction = normalized turn");
+                    //    gyroTurnFull(turnPower, P_TURN_COEFF, desiredHeading, true);
+                    // }
 
                     break;
                 }
@@ -423,7 +423,12 @@ public class LCHSAuto {
 
                     int targetTiltPosition = Integer.parseInt(parameters.get(0));
 
-                    // Tilt the boom in a separate thread
+                    // Tilt the boom in a separate thread.
+                    tiltLock.lock();
+                    tiltMoveComplete = false; // make sure the synchronization flag starts off false
+                    tiltLock.unlock();
+
+                    RobotLog.dd(TAG, "Starting TILT thread");
                     tiltThread = new TiltThread(targetTiltPosition);
                     tiltThread.start();
                     break;
@@ -454,8 +459,10 @@ public class LCHSAuto {
                         android.os.SystemClock.sleep(20);
                     }
 
-                    robot.intakeLeft.setPower(-0.8);
-                    robot.intakeRight.setPower(-0.8);
+                    // Use flappers to spit out OR use gate to drop??
+                    //robot.gateLeft.setPosition(LCHSHardwareMap.GATE_LEFT_SERVO_OPEN);
+                    robot.intakeRight.setPower(-0.5);
+                    robot.intakeLeft.setPower(-0.5); // used to be -0.8, lowered power so less throw
 
                     android.os.SystemClock.sleep(2000);
 
@@ -505,7 +512,7 @@ public class LCHSAuto {
                     int mineralParameterIndex = sampleAndTurn(currentStep);
 
                     // Approach the depot.
-                    double approachDistance = Double.parseDouble(parameters.get(mineralParameterIndex));
+                    double approachDistance = Double.parseDouble(parameters.get(mineralParameterIndex++));
                     RobotLog.dd(TAG, "Approach depot distance " + approachDistance);
 
                     if (approachDistance != 0) {
@@ -514,9 +521,7 @@ public class LCHSAuto {
                     }
 
                     // Turn towards the depot for claim
-                    // Approach the depot.
-                    mineralParameterIndex++;
-                    double turnToDepotForClaim = Double.parseDouble(parameters.get(mineralParameterIndex));
+                    double turnToDepotForClaim = Double.parseDouble(parameters.get(mineralParameterIndex++));
                     RobotLog.dd(TAG, "Turn to depot for claim " + turnToDepotForClaim);
 
                     if (turnToDepotForClaim != 0) {
@@ -594,7 +599,7 @@ public class LCHSAuto {
 
                 // After sampling in front of the crater, proceed to the depot and make a claim
                 // with our marker.
-                // DEPOT_REMOTE parameter identifiers for moving the robot from the crater to the depot.
+                // DEPOT_REMOTE parameter identifiers:
                 // public static final String[] depotRemoteParameters = {"vuforia", "reverseC",
                 //        "turnV", "approachV", "turnD", "approachD"};
                 case DEPOT_REMOTE: {
@@ -602,9 +607,16 @@ public class LCHSAuto {
                     if (parameters.size() != (Configuration.mineralPositions.length * Configuration.depotRemoteParameters.length))
                         throw new AutonomousRobotException(TAG, "Missing expected parameter(s)");
 
-                    //** Select which set of parameters to start with based on where the gold mineral
+                    // Select which set of parameters to start with based on where the gold mineral
                     // was found.
-                    int mineralParameterIndex = 0;
+                    if (foundGoldPosition == LCHSValues.MineralPosition.UNKNOWN) {
+                        // Mineral recognition failed so abort the trip to the remote depot.
+                        RobotLog.dd(TAG, "Aborting trip to the remote depot");
+                        break;
+                    }
+
+                    // Set index for LEFT, CENTER, or RIGHT.
+                    int mineralParameterIndex = Configuration.depotRemoteParameters.length * foundGoldPosition.ordinal();
 
                     // The "vuforia" parameter is a double but we'll use it as a boolean:
                     // 0 means do not use Vuforia for navigation, non-zero means use Vuforia.
@@ -614,18 +626,56 @@ public class LCHSAuto {
 
                     // From the crater back up towards the center position.
                     double reverseC = Double.parseDouble(parameters.get(mineralParameterIndex++));
+                    RobotLog.dd(TAG, "Reverse to center distance " + reverseC);
+
+                    if (reverseC != 0) {
+                        driveRobotWithGyro(DriveMode.STRAIGHT, reverseC, DRIVE_POWER, desiredHeading);
+                        RobotLog.dd(TAG, "Reverse done");
+                    }
 
                     // Turn towards the Vuforia target.
                     double turnV = Double.parseDouble(parameters.get(mineralParameterIndex++));
+                    RobotLog.dd(TAG, "Turn towards the Vuforia target " + turnV + " degrees");
+
+                    if (turnV != 0) {
+                        desiredHeading = DEGREES.normalize(desiredHeading + turnV); // set target heading
+                        gyroTurn(desiredHeading);
+                        RobotLog.dd(TAG, "Turn done");
+                    }
 
                     // Approach the Vuforia target.
                     double approachV = Double.parseDouble(parameters.get(mineralParameterIndex++));
+                    RobotLog.dd(TAG, "Approach Vuforia target distance " + approachV);
+
+                    if (approachV != 0) {
+                        driveRobotWithGyro(DriveMode.STRAIGHT, approachV, DRIVE_POWER, desiredHeading);
+                        RobotLog.dd(TAG, "Approach done");
+                    }
+
+                    //** If Vuforia navigation has been selected, here's where we use it to adjust our
+                    // next turn and the length of our approach to the depot.
+                    if (useVuforiaNavigation) {
+                        //** code goes here!
+                    }
 
                     // Turn towards the depot.
                     double turnD = Double.parseDouble(parameters.get(mineralParameterIndex++));
+                    RobotLog.dd(TAG, "Turn to depot for claim " + turnD + " degrees");
+
+                    if (turnD != 0) {
+                        desiredHeading = DEGREES.normalize(desiredHeading + turnD); // set target heading
+                        gyroTurn(desiredHeading);
+                        RobotLog.dd(TAG, "Turn done");
+                    }
 
                     // Approach the depot.
                     double approachD = Double.parseDouble(parameters.get(mineralParameterIndex++));
+                    RobotLog.dd(TAG, "Approach depot distance " + approachD);
+
+                    if (approachD != 0) {
+                        driveRobotWithGyro(DriveMode.STRAIGHT, approachD, DRIVE_POWER, desiredHeading);
+                        RobotLog.dd(TAG, "Approach done");
+                    }
 
                     break;
                 }
@@ -665,6 +715,7 @@ public class LCHSAuto {
 
     // Initialization for Tensorflow.
     // Taken from the FTC sample ConceptTensorFlowObjectDetection.
+    //** Refactoring: sets "tfod" - but this could be a class field inside a TensorFlowRecognition class
     private void initTensorFlow() {
 
         RobotLog.dd(TAG, "In initTensorFlow()");
@@ -688,6 +739,7 @@ public class LCHSAuto {
     }
 
 
+    //** Refactoring: creates the "vuforia" object.
     private void initVuforia() {
         final float mmPerInch = 25.4f;
         final float mmFTCFieldWidth = (12 * 6) * mmPerInch;       // the width of the FTC field (from the center point to the outer panels)
@@ -825,6 +877,7 @@ public class LCHSAuto {
 
 
     // Look for the gold mineral at each of the three sample positions.
+    //** Refactoring: writes class field (enum) foundGoldPosition
     private int sampleAndTurn(Configuration.Step pStep) throws InterruptedException {
 
         Configuration.Command command = pStep.getCommand();
@@ -843,7 +896,8 @@ public class LCHSAuto {
         else
             itemsInParameterSet = Configuration.craterStartParameters.length;
 
-        int mineralParameterIndex = itemsInParameterSet; // start with CENTER (index 0 would be LEFT)
+        // Set the index into the List of parameters.
+        int mineralParameterIndex = itemsInParameterSet * LCHSValues.MineralPosition.CENTER.ordinal();
 
         // Turn towards the CENTER sample.
         double turnDegreesC = Double.parseDouble(parameters.get(mineralParameterIndex));
@@ -860,7 +914,7 @@ public class LCHSAuto {
             android.os.SystemClock.sleep(500);
         }
 
-        // Even if the number of degress to turn towards the center mineral is 0,
+        // Even if the number of degrees to turn towards the center mineral is 0,
         // which will be the typical case, make sure that the robot is not skewed
         // from previous steps, e.g. a 180 turn.
         double degreeDifference = DEGREES.normalize(desiredHeading - getIMUHeading());
@@ -870,12 +924,11 @@ public class LCHSAuto {
             RobotLog.dd(TAG, "Current heading before turn " + getIMUHeading());
 
             gyroTurn(desiredHeading);
-            android.os.SystemClock.sleep(500);
+            android.os.SystemClock.sleep(500); // settle for the camera
         }
 
-        //** At this point the robot should not be skewed but it may be shifted left or
-        // right. Can we get this information out of Tensorflow or OpenCV and then adjust
-        // the turn? Can we figure out the distance to the gold mineral?
+        // At this point the robot should not be skewed but it may be shifted left or right.
+        // Right now we just have to live with this.
 
         if (mineralVision == LCHSValues.MineralVisionSystem.OPENCV)
             foundGold = findGoldMineralOpenCV(LCHSValues.MineralPosition.CENTER);
@@ -883,7 +936,7 @@ public class LCHSAuto {
 
         if (!foundGold) { // gold at center?
             // No, turn towards the LEFT sample.
-            mineralParameterIndex = 0;
+            mineralParameterIndex = itemsInParameterSet * LCHSValues.MineralPosition.LEFT.ordinal(); // should be 0
             double turnDegreesL = Double.parseDouble(parameters.get(mineralParameterIndex));
             RobotLog.dd(TAG, "Turn towards LEFT mineral " + turnDegreesL);
             RobotLog.dd(TAG, "Desired heading before turn " + desiredHeading);
@@ -894,7 +947,7 @@ public class LCHSAuto {
 
             if (turnDegreesL != 0) {
                 gyroTurn(desiredHeading);
-                android.os.SystemClock.sleep(500);
+                android.os.SystemClock.sleep(500); // settle for the camera
             }
 
             lastSearchForMineral = LCHSValues.MineralPosition.LEFT;
@@ -904,7 +957,7 @@ public class LCHSAuto {
 
             if (!foundGold) {
                 // Turn towards the RIGHT sample.
-                mineralParameterIndex = 2 * itemsInParameterSet;
+                mineralParameterIndex = itemsInParameterSet * LCHSValues.MineralPosition.RIGHT.ordinal();
                 double turnDegreesR = Double.parseDouble(parameters.get(mineralParameterIndex));
 
                 // Since we've already turned left we have to undo that turn.
@@ -918,7 +971,7 @@ public class LCHSAuto {
 
                 if (turnDegreesR != 0) {
                     gyroTurn(desiredHeading);
-                    android.os.SystemClock.sleep(500);
+                    android.os.SystemClock.sleep(500); // settle for the camera
                 }
 
                 lastSearchForMineral = LCHSValues.MineralPosition.RIGHT;
@@ -951,11 +1004,10 @@ public class LCHSAuto {
                 gyroTurn(desiredHeading);
             }
 
-            mineralParameterIndex = itemsInParameterSet; // reset to CENTER
+            mineralParameterIndex = itemsInParameterSet * LCHSValues.MineralPosition.CENTER.ordinal(); // reset to CENTER
         }
 
         // Now facing a (hopefully gold) mineral.
-
         // Make a "post recognition turn" to avoid other minerals.
         mineralParameterIndex++; // all cases: advance to postRT parameter
         double postRecognitionTurn = Double.parseDouble(parameters.get(mineralParameterIndex));
@@ -1397,16 +1449,15 @@ public class LCHSAuto {
             // +179. But what if the current heading reaches 0 or -1 but then flips back to +1 (this
             // can happen)? Since we've switched over to a normalized turn, we'd then proceed
             // counter-clockwise from +1 to -180. Not what we want.
-            // Solution: check every time - if the absolute value of the unnormalized turn is > 180
-            // then set the useNormalized flag to false.
+            // This condition has not occurred in testing as of 11/28/18.
             if (!useNormalized) {
                 normalizedError = getError(angle, currentHeading, true);
                 unnormalizedError = getError(angle, currentHeading, false);
                 if (normalizedError * unnormalizedError >= 0.0f) {
                     useNormalized = true;
-                    RobotLog.dd(TAG, "Switch to normalized turn at " + normalizedError);
+                    RobotLog.dd(TAG, "Switch to normalized turn with error of " + normalizedError);
                 } else
-                    RobotLog.dd(TAG, "Use unnormalized turn of " + unnormalizedError);
+                    RobotLog.dd(TAG, "Use unnormalized turn with error of " + unnormalizedError);
             }
 
             // If the robot has reached the inner turn window, e.g. 1 degree, stop here.
@@ -1896,12 +1947,12 @@ of each type is in contention, take the mineral with the highest confidence leve
         // If we have only gold or only silver report the results accordingly.
         if ((totalGoldQualified != 0) || (totalSilverQualified != 0)) {
             if ((totalGoldQualified != 0) && (totalSilverQualified == 0)) {
-                RobotLog.dd(TAG, "Found only " + totalGoldQualified + " gold mineral(s)");
+                RobotLog.dd(TAG, "Found qualified gold minerals only in " + totalGoldQualified + " set(s) of recognitions");
                 return true;
             }
 
             if ((totalGoldQualified == 0) && (totalSilverQualified != 0)) {
-                RobotLog.dd(TAG, "Found only " + totalSilverQualified + " silver mineral(s)");
+                RobotLog.dd(TAG, "Found qualified silver minerals only in " + totalSilverQualified + " set(s) of recognition");
                 return false;
             }
 
@@ -1951,6 +2002,7 @@ of each type is in contention, take the mineral with the highest confidence leve
     private boolean findGoldMineralOpenCV(LCHSValues.MineralPosition pMineralPosition) throws InterruptedException {
 
         //** As an experiment get a number of images from Vuforia.
+        //** Also look at the Vuforia Camera device - you may be able to get frames directly.
         List<Bitmap> imageCollection = new ArrayList<>();
         List<Bitmap> cameraImages;
 
@@ -2056,6 +2108,8 @@ of each type is in contention, take the mineral with the highest confidence leve
         @Override
         public void run() {
 
+            RobotLog.dd(TAG, "Executing TILT thread");
+
             // Run the tilt motor.
             robot.tilt.setMode(DcMotor.RunMode.RUN_TO_POSITION);
             robot.tilt.setTargetPosition(tiltClicks);
@@ -2065,8 +2119,12 @@ of each type is in contention, take the mineral with the highest confidence leve
                 android.os.SystemClock.sleep(20);
             }
 
+            robot.tilt.setPower(0.0);
+            robot.tilt.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+
             // For synchronization - see TILT_WAIT
             tiltLock.lock();
+            RobotLog.dd(TAG, "TILT thread complete");
             tiltMoveComplete = true;
             tiltCondition.signal(); // let the main thread know
             tiltLock.unlock();

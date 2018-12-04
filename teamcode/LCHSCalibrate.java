@@ -33,6 +33,7 @@
 
 package org.firstinspires.ftc.teamcode;
 
+import com.qualcomm.robotcore.eventloop.opmode.Disabled;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.AnalogInput;
@@ -43,7 +44,7 @@ import java.util.Iterator;
 import java.util.LinkedHashMap;
 
 @TeleOp(name = "LCHSCalibrate", group = "TeamCode")
-
+//@Disabled
 public class LCHSCalibrate extends LinearOpMode {
 
     // Define class members
