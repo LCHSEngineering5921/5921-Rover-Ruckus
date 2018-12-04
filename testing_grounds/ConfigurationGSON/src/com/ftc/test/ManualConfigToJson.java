@@ -7,7 +7,12 @@ import java.util.Map;
 
 import com.ftc.test.Configuration;
 
-public class ManualConfigBuild {
+/**
+ * @author Trinity Chung
+ *
+ */
+
+public class ManualConfigToJson {
 
 	public static void main(String[] args) {
 		

@@ -1,14 +1,20 @@
 package com.ftc.test;
 
-public class Auto {
+/**
+ * @author Trinity Chung
+ *
+ */
+
+public class JsonToConfig {
 
 	public static void main(String[] args) {
 		
-		String configFilePath = "/Users/trinity/Documents/Robotics/LCHS 5921 FTC/ConfigurationTest/src/com/ftc/test/robotConfigTest.json";
+		String configFilePath = System.getProperty("user.dir") + "/src/com/ftc/test/robotConfig.json";
 		try {
-			
 			Configuration config = new Configuration(configFilePath);
 			config.displayContents();
+			
+			//System.out.println(config.opModes.toString());
 			
 		} catch (Exception ex) {
 			ex.printStackTrace();

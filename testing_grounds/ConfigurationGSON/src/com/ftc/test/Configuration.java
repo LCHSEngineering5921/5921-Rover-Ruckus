@@ -9,11 +9,20 @@ import java.lang.reflect.Type;
 
 import com.google.gson.reflect.TypeToken;
 import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 import com.google.gson.JsonIOException;
 import com.google.gson.JsonSyntaxException;
 
 /**
- * @author trinity
+ * @author Trinity Chung
+ *
+ * Configuration
+ *   - OpMode(s)
+ *     - Command(s)
+ *       - Property(s)
+ *       
+ * TODO: use maps instead of lists
+ * to achieve robotConfigIdeal.json
  *
  */
 
@@ -32,16 +41,16 @@ public class Configuration {
 	public Configuration(String configFilePath) throws JsonIOException, JsonSyntaxException, FileNotFoundException {
 		Gson gson = new Gson();
 		
-		Type type = new TypeToken<Map<String,OpMode>>(){}.getType();
+		Type type = new TypeToken<List<OpMode>>(){}.getType();
 		opModes = gson.fromJson(new FileReader(configFilePath), type);
 		
 	}
 	
 	public void displayContents() {
-		System.out.println(opModes.toString());
-		Gson gson = new Gson();
-		String contents = gson.toJson(opModes);
-		System.out.println(contents);
+		Gson gsonPretty = new GsonBuilder().setPrettyPrinting().create();
+		Gson gsonUgly = new Gson();
+		System.out.println(gsonPretty.toJson(opModes));
+		System.out.println(gsonUgly.toJson(opModes));
 	}
 
 	public class OpMode {
@@ -58,13 +67,17 @@ public class Configuration {
 			this.commands = commands;
 		}
 		
+		public String toString() {
+			return opMode + ": " + commands.toString();
+		}
+		
 		public class Command {
 			String command;
 			List<Property> properties;
 			
-			//public void execute() {
-				// execute command
-			//}
+			public void execute() {
+				//execute command
+			}
 
 			public Command(String name) {
 				this.command = name;

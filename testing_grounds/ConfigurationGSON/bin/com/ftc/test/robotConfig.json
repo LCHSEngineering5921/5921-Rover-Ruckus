@@ -1,42 +1,85 @@
-{
-    "opModes":{
-        "LEFT_COOP":{
-            "commands":[
-                {
-                    "STRAIGHT":{
-                        "properties":{
-                            "distance":24
-                        }
-                    }
-                },
-                {
-                    "TURN":{
-                        "properties":{
-                            "degrees":90,
-                            "power":1.0
-                        }
-                    }
-                }
-            ]
-        },
-        "RIGHT_COOP":{
-            "commands":[
-                {
-                    "STRAIGHT":{
-                        "properties":{
-                            "distance":24
-                        }
-                    }
-                },
-                {
-                    "TURN":{
-                        "properties":{
-                            "degrees":90,
-                            "power":1.0
-                        }
-                    }
-                }
-            ]
-        }
-    }
-}
+[
+  {
+    "opMode": "left_coop",
+    "commands": [
+      {
+        "command": "land",
+        "properties": [
+          {
+            "key": "tilt_target",
+            "value": 2200
+          }
+        ]
+      },
+      {
+        "command": "turn",
+        "properties": [
+          {
+            "key": "power",
+            "value": 0.5
+          },
+          {
+            "key": "angle",
+            "value": 90.0
+          }
+        ]
+      },
+      {
+        "command": "sample",
+        "properties": [
+          {
+            "key": "left",
+            "value": {
+              "lcTurn": 0.1,
+              "postRT": 24.0,
+              "knock": 12.0
+            }
+          },
+          {
+            "key": "center",
+            "value": {
+              "lcTurn": 0.1,
+              "postRT": 24.0,
+              "knock": 12.0
+            }
+          },
+          {
+            "key": "right",
+            "value": {
+              "lcTurn": 0.1,
+              "postRT": 24.0,
+              "knock": 12.0
+            }
+          }
+        ]
+      },
+      {
+        "command": "land",
+        "properties": [
+          {
+            "key": "tilt_target",
+            "value": 2200
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "opMode": "right_coop",
+    "commands": [
+      {
+        "command": "turn",
+        "properties": [
+          {
+            "key": "power",
+            "value": 1.0
+          },
+          {
+            "key": "angle",
+            "value": -90.0
+          }
+        ]
+      }
+    ]
+  }
+]
