@@ -82,12 +82,17 @@ public class Configuration {
 
     // SAMPLE parameter identifiers for the red right and blue right starting positions.
     public static final String[] depotStartParameters = {"turn", "postRT",
-    //        "knock", "turn_depot", "approach_depot"};
-              "knock", "turn_depot", "approach_depot", "turn_claim"}; // 11/21/18 added turn_claim
+            //        "knock", "turn_depot", "approach_depot"};
+            "knock", "turn_depot", "approach_depot", "turn_claim"}; // 11/21/18 added turn_claim
 
     // DEPOT_REMOTE parameter identifiers for moving the robot from the crater to the depot.
-    public static final String[] depotRemoteParameters = {"vuforia", "reverseC",
-    "turnV", "approachV", "turnD", "approachD"};
+    public static final String[] depotRemoteParameters = {"vuforia",
+            "reverseC", "%d", "%d", // distance in inches, power
+            "turnV", "%d", "%d", "%d", // angle, power, turn coefficient
+            "approachV", "%d", "%d", // distance in inches, power
+            "turnD", "%d", "%d", "%d", // angle, power, turn coefficient
+            "approachD", "%d", "%d"// distance in inches, power
+    };
 
     private List<String> tokens;
     private StepsInChoreography stepsInChoreography;
@@ -219,8 +224,7 @@ public class Configuration {
                     case STRAIGHT_GYRO:
                     case STRAFE:
                         // case STRAFE_GYRO:
-                     case TURN_REQUESTED_DIRECTION:
-                    {
+                    case TURN_REQUESTED_DIRECTION: {
                         tokenIndex++; // advance to parameter
                         if (tokenIndex == numTokens)
                             throw new AutonomousRobotException(TAG, "Missing parameter in choreography after: " + commandString);
@@ -295,7 +299,7 @@ public class Configuration {
                         break;
                     }
 
-                     // TILT // parameters: <int clicks for tilt motor>
+                    // TILT // parameters: <int clicks for tilt motor>
                     // CLAIM, // parameters: <(int> clicks for boom target position>
                     case TILT:
                     case CLAIM: {
@@ -361,17 +365,15 @@ public class Configuration {
                     }
 
                     //** The parsing of SAMPLE_DEPOT, SAMPLE_CRATER, and DEPOT_REMOTE can be combined
-                        // into a single method. Pass the tokens list and the parameter array as arguments.
+                    // into a single method. Pass the tokens list and the parameter array as arguments.
+                    // 12/5/18 implemented for DEPOT_REMOTE. Convert SAMPLE_DEPOT and SAMPLE_CRATER
+                    // next.
 
                     // Movements for the right starting position.
                     // The robot must turn towards a sample, detect the gold sample,
                     // advance to knock off the gold sample, turn towards the depot,
                     // and advance to the edge of the depot.
                     case SAMPLE_DEPOT: {
-                        // The total number of parameters is determined by the number of samples
-                        // and the size of the parameter array.
-                        // In the configuration file a sample location identifier, e.g. "[LEFT]",
-                        // precedes each set.
                         for (int i = 0; i < mineralPositions.length; i++) {
                             tokenIndex++;
                             if (tokenIndex == numTokens)
@@ -412,10 +414,6 @@ public class Configuration {
                     // advance to knock off the gold sample, turn towards the crater,
                     // and advance until it reaches the incline angle.
                     case SAMPLE_CRATER: {
-                        // The total number of parameters is determined by the number of samples
-                        // and the size of the parameter array.
-                        // In the configuration file a sample location identifier, e.g. "[LEFT]",
-                        // precedes each set.
                         for (int i = 0; i < mineralPositions.length; i++) {
                             tokenIndex++;
                             if (tokenIndex == numTokens)
@@ -452,41 +450,10 @@ public class Configuration {
                     }
 
                     // After sampling in front of the crater, proceed to the depot and make a claim
-                        // with our marker.
-                   case DEPOT_REMOTE: {
-                        // The total number of parameters is determined by the number of samples
-                        // and the size of the parameter array.
-                        // In the configuration file a sample location identifier, e.g. "[LEFT]",
-                        // precedes each set.
-                        for (int i = 0; i < mineralPositions.length; i++) {
-                            tokenIndex++;
-                            if (tokenIndex == numTokens)
-                                throw new AutonomousRobotException(TAG, "Missing parameter " + mineralPositions[i] + " after: " + commandString);
-
-                            parameter = tokens.get(tokenIndex);
-                            if (!parameter.equals(mineralPositions[i]))
-                                throw new AutonomousRobotException(TAG, "Unexpected parameter " + parameter + " after " + mineralPositions[i] + " after: " + commandString);
-
-                            // For each mineral position there are 4 parameters. //** changed to 5
-                            // A parameter identifier precedes each parameter.
-                            for (int j = 0; j < depotRemoteParameters.length; j++) {
-                                tokenIndex++; // advance to parameter identifier
-                                if (tokenIndex == numTokens)
-                                    throw new AutonomousRobotException(TAG, "Missing parameter " + depotRemoteParameters[j] + " after " + mineralPositions[i] + " after: " + commandString);
-
-                                parameter = tokens.get(tokenIndex); // parameter identifier
-                                if (!parameter.equals(depotRemoteParameters[j]))
-                                    throw new AutonomousRobotException(TAG, "Unexpected parameter " + parameter + " after " + mineralPositions[i] + " after: " + commandString);
-
-                                tokenIndex++; // advance to parameter value
-                                if (tokenIndex == numTokens)
-                                    throw new AutonomousRobotException(TAG, "Missing value after " + depotRemoteParameters[j] + " after " + mineralPositions[i] + " after: " + commandString);
-
-                                parameter = tokens.get(tokenIndex);
-                                parameters.add(parameter);
-                                Double.parseDouble(parameter); // check number format
-                            }
-                        }
+                    // with our marker.
+                    case DEPOT_REMOTE: {
+                        tokenIndex = parseTokenAndParameterPairs(commandString, tokenIndex,
+                                tokens, depotRemoteParameters, parameters);
 
                         if (!skipCommand)
                             steps.add(new Step(command, parameters));
@@ -524,6 +491,136 @@ public class Configuration {
         public List<Step> getSteps() {
             return steps;
         }
+
+        // Generic method to parse tokens from the configuration file and expected
+        // corresponding subparameters.
+        private int parseTokenAndParameterPairs(String pCommandString, int pTokenIndex,
+                                                List<String> pTokens, String[] pSubParameters, List<String> pOutputParameters) {
+
+            int tokenIndex = pTokenIndex;
+            int numTokens = pTokens.size();
+            String token;
+            int subParameterIndex;
+
+            for (int i = 0; i < mineralPositions.length; i++) {
+                tokenIndex++;
+                if (tokenIndex == numTokens) {
+                    System.out.println("Missing parameter " + mineralPositions[i] + " after: " + pCommandString);
+                    System.exit(1);
+                }
+
+                // For each mineral position there 1 to n subparameters.
+                // A subparameter identifier precedes each subparameter.
+                subParameterIndex = 0;
+                while (true) {
+                    tokenIndex++;
+                    token = tokens.get(tokenIndex); // parameter identifier
+                    if (!token.equals(pSubParameters[subParameterIndex])) {
+                        System.out.println("Subparameter mismatch with " + token + " after " + mineralPositions[i]
+                                + " after: " + pCommandString);
+                        System.exit(1);
+                    }
+
+                    tokenIndex++; // advance to parameter value
+                    if (tokenIndex == numTokens) {
+                        System.out.println("Missing value after " + pSubParameters[subParameterIndex] + " after "
+                                + mineralPositions[i] + " after: " + pCommandString);
+                        System.exit(1);
+                    }
+
+                    token = tokens.get(tokenIndex); // data value
+                    // At this point "token" should contain the data associated with the current
+                    // subparameter.
+                    // Look at the next subparameter to see if we should parse token as a default
+                    // double or if there is a format specifier.
+                    subParameterIndex++;
+                    if ((subParameterIndex == (pSubParameters.length))
+                            || (!pSubParameters[subParameterIndex].startsWith("%"))) {
+                        pOutputParameters.add(token);
+                        Double.parseDouble(token); // check default number format
+                        if (subParameterIndex == (pSubParameters.length))
+                            break;
+                        else
+                            continue;
+                    }
+
+                    // Consume all of the value tokens/subparameter format specifier pairs.
+                    LCHSImmutablePair<Integer, Integer> cReturn = consume(tokenIndex, subParameterIndex, tokens,
+                            pSubParameters, pOutputParameters);
+                    tokenIndex = cReturn.getFirst();
+                    subParameterIndex = cReturn.getSecond();
+                    if (subParameterIndex == (pSubParameters.length)) {
+                        break;
+                    }
+                }
+            }
+
+            return tokenIndex;
+        }
+
+        // On entry tokenIndex should point to a value that corresponds to the
+        // format specifier that depotParameterIndex points to.
+
+        // Cases:
+
+        // Normal --
+
+        // tokens.get(tokenIndex) -> 60.0 SLEEP [next command] or <eod>
+        // depotRemoteParameters[depotParameterIndex] -> %d <eod>
+
+        // tokens.get(tokenIndex) -> 60.0 approachV
+        // depotRemoteParameters[depotParameterIndex] -> %d approachV
+
+        // tokens.get(tokenIndex) -> 60.0 1.0 ... SLEEP [next command] or <eod>
+        // depotRemoteParameters[depotParameterIndex] -> %d %d ... <eod>
+
+        // tokens.get(tokenIndex) -> 60.0 0.7 ... approachV
+        // depotRemoteParameters[depotParameterIndex] -> %d %d ... approachV
+
+        // Error --
+
+        // tokens.get(tokenIndex) -> 60.0 <eod>
+        // depotRemoteParameters[depotParameterIndex] -> %d approachV <i.e. not eod>
+
+        // tokens.get(tokenIndex) -> 60.0 approachV [next parameter] or SLEEP [next
+        // command] or <eod>
+        // depotRemoteParameters[depotParameterIndex] -> %d %d approachV
+
+        // Call a method that will consume actual values from tokens in a line from
+        // the configuration file and all of the expected corresponding subparameter
+        // identifiers and format specifiers from an array of Strings in this class.
+
+        // Return a Pair with tokenIndex pointing to the next token to be consumed and
+        // subParameterIndex pointing to the next corresponding subparameter to be
+        // consumed.
+        private LCHSImmutablePair<Integer, Integer> consume(int pTokenIndex, int pSubParameterIndex, List<String> pTokens,
+                                                            String[] pSubParameters, List<String> pOutputParameters) {
+            int tokenIndex = pTokenIndex;
+            int subParameterIndex = pSubParameterIndex;
+            LCHSImmutablePair<Integer, Integer> retVal;
+
+            // Store the current token from the configuration file as output.
+            String token = pTokens.get(tokenIndex);
+            pOutputParameters.add(token);
+
+            // Safety check: make sure the current value token is the correct format.
+            if (pSubParameters[subParameterIndex].charAt(1) == 'd')
+                Double.parseDouble(token);
+            else if (pSubParameters[subParameterIndex].charAt(1) == 'i')
+                Integer.parseInt(token);
+            // else assume it's a String
+
+            // Advance to the next subparameter, which may or may not be a format specifier.
+            subParameterIndex++;
+            if ((subParameterIndex == pSubParameters.length) || (!pSubParameters[subParameterIndex].startsWith("%"))) {
+                retVal = new LCHSImmutablePair<Integer, Integer>(tokenIndex, subParameterIndex);
+            } else {
+                tokenIndex++;
+                retVal = consume(tokenIndex, subParameterIndex, pTokens, pSubParameters, pOutputParameters);
+            }
+
+            return retVal;
+        }
     }
 
     // The user of this class will have to interpret the parameters
@@ -548,6 +645,27 @@ public class Configuration {
             return parameters;
         }
 
+    }
+
+    // Note that org.apache.commons.lang3.tuple has a Class ImmutablePair<L,R>
+    // This one came from stackexchange:
+    // https://stackoverflow.com/questions/6044923/generic-pair-class
+    class LCHSImmutablePair<F, S> {
+        private final F first; // first member of pair
+        private final S second; // second member of pair
+
+        public LCHSImmutablePair(F first, S second) {
+            this.first = first;
+            this.second = second;
+        }
+
+        public F getFirst() {
+            return first;
+        }
+
+        public S getSecond() {
+            return second;
+        }
     }
 
 }

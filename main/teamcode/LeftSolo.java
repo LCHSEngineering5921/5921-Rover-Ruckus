@@ -5,7 +5,7 @@ import com.qualcomm.robotcore.eventloop.opmode.Disabled;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 
 @Autonomous(name = "Auto Left Solo", group = "TeamCode")
-@Disabled
+//@Disabled
 public class LeftSolo extends LinearOpMode {
 
 	public void runOpMode() throws InterruptedException {

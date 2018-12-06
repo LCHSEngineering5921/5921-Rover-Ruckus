@@ -5,13 +5,12 @@ package org.firstinspires.ftc.teamcode;
  * Last edited by Trinity on 11/7/2018
  */
 
-import com.qualcomm.robotcore.hardware.ColorSensor;
 import com.qualcomm.robotcore.util.RobotLog;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.hardware.Servo;
+import com.qualcomm.robotcore.hardware.CRServo;
 import com.qualcomm.hardware.bosch.BNO055IMU;
-import com.qualcomm.robotcore.hardware.AnalogInput;
 
 // Common hardware definitions for LCHSAuto and LCHSTeleOp.
 public class LCHSHardwareMap {
@@ -28,11 +27,12 @@ public class LCHSHardwareMap {
 
     DcMotor tilt;
     DcMotor boom;
-    DcMotor intakeLeft; // not used in reality; only have 1 motor for intake now
-    DcMotor intakeRight;
 
-    Servo gateLeft;
-    Servo gateRight;
+    CRServo intakeLeft;
+    CRServo intakeRight;
+
+    //Servo gateLeft; //** TODO: remove gate servos
+    //Servo gateRight;
     Servo hookServo;
 
     // AnalogInput tiltSwitch;
@@ -70,13 +70,13 @@ public class LCHSHardwareMap {
 
         tilt = hwMap.dcMotor.get("tilt");
         boom = hwMap.dcMotor.get("boom");
-        intakeLeft = hwMap.dcMotor.get("intake_left");
-        intakeRight = hwMap.dcMotor.get("intake_right");
+
+        // Continuous Rotation Servos
+        intakeLeft = hwMap.get(CRServo.class, "intake_left");
+        intakeRight = hwMap.get(CRServo.class, "intake_right");
 
         // Servos
         hookServo = hwMap.servo.get("hook");
-        gateLeft = hwMap.servo.get("gate_left");
-        gateRight = hwMap.servo.get("gate_right");
 
         // Analog Input
         // tiltSwitch = hwMap.analogInput.get("tilt_switch");
@@ -97,13 +97,13 @@ public class LCHSHardwareMap {
         rightBack.setDirection(DcMotor.Direction.FORWARD);
         tilt.setDirection(DcMotor.Direction.FORWARD);
         boom.setDirection(DcMotor.Direction.FORWARD);
-        intakeLeft.setDirection(DcMotor.Direction.FORWARD);
-        intakeRight.setDirection(DcMotor.Direction.FORWARD);
+
+        // CRServos
+        intakeLeft.setDirection(CRServo.Direction.FORWARD);
+        intakeRight.setDirection(CRServo.Direction.FORWARD);
 
         // Servos
         hookServo.setDirection(Servo.Direction.FORWARD);
-        gateLeft.setDirection(Servo.Direction.FORWARD);
-        gateRight.setDirection(Servo.Direction.FORWARD);
 
         // Set all motors to zero power
         leftFront.setPower(0);
@@ -112,12 +112,8 @@ public class LCHSHardwareMap {
         rightBack.setPower(0);
         tilt.setPower(0);
         boom.setPower(0);
-        intakeRight.setPower(0);
-        intakeLeft.setPower(0);
 
         hookServo.setPosition(HOOK_SERVO_CLOSED);
-        gateLeft.setPosition(GATE_LEFT_SERVO_OPEN);
-        gateRight.setPosition(GATE_RIGHT_SERVO_OPEN);
 
 
         // Initialize the IMU

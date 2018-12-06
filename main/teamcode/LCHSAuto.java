@@ -13,6 +13,7 @@ import com.vuforia.PIXEL_FORMAT;
 
 import org.firstinspires.ftc.robotcore.external.ClassFactory;
 import org.firstinspires.ftc.robotcore.external.matrices.OpenGLMatrix;
+import org.firstinspires.ftc.robotcore.external.matrices.VectorF;
 import org.firstinspires.ftc.robotcore.external.navigation.Acceleration;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.Orientation;
@@ -94,6 +95,7 @@ public class LCHSAuto {
      * localization engine.
      */
     private VuforiaLocalizer vuforia;
+    private List<VuforiaTrackable> allTrackables = new ArrayList<VuforiaTrackable>();
 
     /**
      * {@link #tfod} is the variable we will use to store our instance of the Tensor Flow Object
@@ -599,9 +601,14 @@ public class LCHSAuto {
 
                 // After sampling in front of the crater, proceed to the depot and make a claim
                 // with our marker.
-                // DEPOT_REMOTE parameter identifiers:
-                // public static final String[] depotRemoteParameters = {"vuforia", "reverseC",
-                //        "turnV", "approachV", "turnD", "approachD"};
+                // DEPOT_REMOTE parameter identifiers for moving the robot from the crater to the depot.
+                /* public static final String[] depotRemoteParameters = {"vuforia",
+                        "reverseC", "%d", "%d", // distance in inches, power
+                        "turnV", "%d", "%d", "%d", // angle, power, turn coefficient
+                        "approachV", "%d", "%d", // distance in inches, power
+                        "turnD", "%d", "%d", "%d", // angle, power, turn coefficient
+                        "approachD", "%d", "%d"// distance in inches, power
+                }; */
                 case DEPOT_REMOTE: {
                     // Check that we've got the right number of parameters
                     if (parameters.size() != (Configuration.mineralPositions.length * Configuration.depotRemoteParameters.length))
@@ -611,8 +618,8 @@ public class LCHSAuto {
                     // was found.
                     if (foundGoldPosition == LCHSValues.MineralPosition.UNKNOWN) {
                         // Mineral recognition failed so abort the trip to the remote depot.
-                        RobotLog.dd(TAG, "Aborting trip to the remote depot");
-                        break;
+                        RobotLog.dd(TAG, "Aborting trip to the remote depot; stop autnomous run");
+                        return;
                     }
 
                     // Set index for LEFT, CENTER, or RIGHT.
@@ -626,54 +633,94 @@ public class LCHSAuto {
 
                     // From the crater back up towards the center position.
                     double reverseC = Double.parseDouble(parameters.get(mineralParameterIndex++));
-                    RobotLog.dd(TAG, "Reverse to center distance " + reverseC);
+                    double reverseCPower = Double.parseDouble(parameters.get(mineralParameterIndex++));
+                    RobotLog.dd(TAG, "Reverse to center distance " + reverseC + " with power " + reverseCPower);
 
                     if (reverseC != 0) {
-                        driveRobotWithGyro(DriveMode.STRAIGHT, reverseC, DRIVE_POWER, desiredHeading);
+                        driveRobotWithGyro(DriveMode.STRAIGHT, reverseC, reverseCPower, desiredHeading);
                         RobotLog.dd(TAG, "Reverse done");
                     }
 
                     // Turn towards the Vuforia target.
                     double turnV = Double.parseDouble(parameters.get(mineralParameterIndex++));
+                    double turnVPower = Double.parseDouble(parameters.get(mineralParameterIndex++));
+                    double turnVCoefficient = Double.parseDouble(parameters.get(mineralParameterIndex++));
                     RobotLog.dd(TAG, "Turn towards the Vuforia target " + turnV + " degrees");
+                    RobotLog.dd(TAG, "With power " + turnVPower + " and coeff " + turnVCoefficient);
 
                     if (turnV != 0) {
                         desiredHeading = DEGREES.normalize(desiredHeading + turnV); // set target heading
-                        gyroTurn(desiredHeading);
+                        gyroTurnFull(turnVPower, turnVCoefficient, desiredHeading, true);
                         RobotLog.dd(TAG, "Turn done");
                     }
 
                     // Approach the Vuforia target.
                     double approachV = Double.parseDouble(parameters.get(mineralParameterIndex++));
-                    RobotLog.dd(TAG, "Approach Vuforia target distance " + approachV);
+                    double approachVPower = Double.parseDouble(parameters.get(mineralParameterIndex++));
+                    RobotLog.dd(TAG, "Approach Vuforia target; distance " + approachV + ". power " + approachVPower);
 
                     if (approachV != 0) {
-                        driveRobotWithGyro(DriveMode.STRAIGHT, approachV, DRIVE_POWER, desiredHeading);
+                        driveRobotWithGyro(DriveMode.STRAIGHT, approachV, approachVPower, desiredHeading);
                         RobotLog.dd(TAG, "Approach done");
                     }
 
                     //** If Vuforia navigation has been selected, here's where we use it to adjust our
                     // next turn and the length of our approach to the depot.
                     if (useVuforiaNavigation) {
-                        //** code goes here!
+
+                        OpenGLMatrix lastLocation = null;
+
+                        for (VuforiaTrackable trackable : allTrackables) {
+                            OpenGLMatrix robotLocationTransform = ((VuforiaTrackableDefaultListener) trackable.getListener()).getUpdatedRobotLocation();
+                            if (robotLocationTransform != null) {
+
+                                if ((trackable.getName().equals("Blue-Rover")) ||
+                                        (trackable.getName().equals("Red-Footprint"))) {
+                                    lastLocation = robotLocationTransform;
+                                    RobotLog.dd(TAG, "Found Vuforia target " + trackable.getName());
+                                    break;
+                                }
+                            }
+                        }
+
+                        if (lastLocation == null) {
+                           RobotLog.dd(TAG, "Did not find the Vuforia target");
+                            useVuforiaNavigation = false;
+                        } else {
+
+
+                                           // express position (translation) of robot in inches.
+                VectorF translation = lastLocation.getTranslation();
+                //telemetry.addData("Pos (in)", "{X, Y, Z} = %.1f, %.1f, %.1f",
+                //        translation.get(0) / mmPerInch, translation.get(1) / mmPerInch, translation.get(2) / mmPerInch);
+
+                // express the rotation of the robot in degrees.
+                Orientation rotation = Orientation.getOrientation(lastLocation, EXTRINSIC, XYZ, DEGREES);
+               // telemetry.addData("Rot (deg)", "{Roll, Pitch, Heading} = %.0f, %.0f, %.0f", rotation.firstAngle, rotation.secondAngle, rotation.thirdAngle);
+
+                        }
                     }
 
                     // Turn towards the depot.
                     double turnD = Double.parseDouble(parameters.get(mineralParameterIndex++));
-                    RobotLog.dd(TAG, "Turn to depot for claim " + turnD + " degrees");
+                    double turnDPower = Double.parseDouble(parameters.get(mineralParameterIndex++));
+                    double turnDCoefficient = Double.parseDouble(parameters.get(mineralParameterIndex++));
+                    RobotLog.dd(TAG, "Turn towards the depot " + turnD + " degrees");
+                    RobotLog.dd(TAG, "With power " + turnDPower + " and coeff " + turnDCoefficient);
 
                     if (turnD != 0) {
                         desiredHeading = DEGREES.normalize(desiredHeading + turnD); // set target heading
-                        gyroTurn(desiredHeading);
+                        gyroTurnFull(turnDPower, turnDCoefficient, desiredHeading, true);
                         RobotLog.dd(TAG, "Turn done");
                     }
 
                     // Approach the depot.
                     double approachD = Double.parseDouble(parameters.get(mineralParameterIndex++));
-                    RobotLog.dd(TAG, "Approach depot distance " + approachD);
+                    double approachDPower = Double.parseDouble(parameters.get(mineralParameterIndex++));
+                    RobotLog.dd(TAG, "Approach depot; distance " + approachD + ". power " + approachDPower);
 
                     if (approachD != 0) {
-                        driveRobotWithGyro(DriveMode.STRAIGHT, approachD, DRIVE_POWER, desiredHeading);
+                        driveRobotWithGyro(DriveMode.STRAIGHT, approachD, approachDPower, desiredHeading);
                         RobotLog.dd(TAG, "Approach done");
                     }
 
@@ -749,8 +796,8 @@ public class LCHSAuto {
          * Configure Vuforia by creating a Parameter object, and passing it to the Vuforia engine.
          */
         int cameraMonitorViewId = robot.hwMap.appContext.getResources().getIdentifier("cameraMonitorViewId", "id", robot.hwMap.appContext.getPackageName());
+        VuforiaLocalizer.Parameters parameters = new VuforiaLocalizer.Parameters(cameraMonitorViewId);
 
-        VuforiaLocalizer.Parameters parameters = new VuforiaLocalizer.Parameters();
         parameters.vuforiaLicenseKey = VUFORIA_KEY;
         parameters.cameraDirection = BACK;
         //**parameters.fillCameraMonitorViewParent = false; //** TRY THIS - even default constructor shows the monitor
@@ -769,7 +816,9 @@ public class LCHSAuto {
         backSpace.setName("Back-Space");
 
         // For convenience, gather together all the trackable objects in one easily-iterable collection */
-        List<VuforiaTrackable> allTrackables = new ArrayList<VuforiaTrackable>();
+        //List<VuforiaTrackable> allTrackables = new ArrayList<VuforiaTrackable>();
+        //** LATER - only load the trackables we need:
+        // "Red-Footprint" and "Blue-Rover" - since we don't know our alliance (it's not encoded in the opmode).
         allTrackables.addAll(targetsRoverRuckus);
 
         /**

@@ -37,6 +37,7 @@ import com.qualcomm.robotcore.eventloop.opmode.Disabled;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.AnalogInput;
+import com.qualcomm.robotcore.hardware.CRServo;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.Servo;
 
@@ -54,18 +55,23 @@ public class LCHSCalibrate extends LinearOpMode {
     {
         MOTOR,
         SERVO,
+        CR_SERVO,
         ANALOG_INPUT,
         NOT_SELECTED
     }
 
     int selectedDeviceIndex = 0;
     DeviceType selectedDeviceType = DeviceType.NOT_SELECTED;
-    Servo selectedServo = null;
+    
+    Servo servo = null;
     double servoPosition = 0.0;
+    
     DcMotor motor = null;
     int motorIncrement = 0;
+    
     AnalogInput analogInput = null;
 
+    CRServo crServo = null;
 
     @Override
     public void runOpMode() {
@@ -80,6 +86,8 @@ public class LCHSCalibrate extends LinearOpMode {
         // Add in our devices
         LinkedHashMap<DcMotor, String> motorDevices = new LinkedHashMap<>();
         LinkedHashMap<Servo, String> servoDevices = new LinkedHashMap<>();
+        LinkedHashMap<CRServo, String> crServoDevices = new LinkedHashMap<>();
+        // not in use
         LinkedHashMap<AnalogInput, String> analogInputDevices = new LinkedHashMap<>();
 
         motorDevices.put(robot.leftFront, "Left Front Wheel Motor");
@@ -88,23 +96,20 @@ public class LCHSCalibrate extends LinearOpMode {
         motorDevices.put(robot.rightBack, "Right Back Wheel Motor");
         motorDevices.put(robot.boom, "Boom Extend Motor");
         motorDevices.put(robot.tilt, "Boom Tilt Motor");
-        motorDevices.put(robot.intakeLeft, "Left Intake Motor");
-        motorDevices.put(robot.intakeRight, "Right Intake Motor");
         servoDevices.put(robot.hookServo, "Hook Servo");
         servoDevices.put(robot.gateLeft, "Left Intake Gate Servo");
         servoDevices.put(robot.gateRight, "Right Intake Gate Servo");
-        // analogInputDevices.put(robot.tiltSwitch, "Tilt Switch");
+        crServoDevices.put(robot.intakeLeft, "Left Intake Motor");
+        crServoDevices.put(robot.intakeRight, "Right Intake Motor");
 
         // Set brake for arm motors
         robot.boom.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         robot.tilt.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-        robot.intakeLeft.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-        robot.intakeRight.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
 
 
         // Initiate buttons
         Button buttonX = new Button("(X)", "Select Servo");
-        Button buttonY = new Button("(Y)", "Select Analog Input");
+        Button buttonY = new Button("(Y)", "Select CRServo");
         Button buttonA = new Button("(A)", "Select Motor");
         Button buttonB = new Button("(B)", "Deselect Device Type");
         Button bumperLeft = new Button("(LB)", "Device Index -1");
@@ -134,11 +139,11 @@ public class LCHSCalibrate extends LinearOpMode {
 
             // ---------- Select Device ----------
             if (buttonX.isDown()) {
-                if (selectedServo != null) servoPosition = selectedServo.getPosition();
+                if (servo != null) servoPosition = servo.getPosition();
                 else servoPosition = 0.5;
                 selectedDeviceType = DeviceType.SERVO;
             } else if (buttonY.isDown()) {
-                selectedDeviceType = DeviceType.ANALOG_INPUT;
+                selectedDeviceType = DeviceType.CR_SERVO; // replace analog input
             } else if (buttonA.isDown()) {
                 motorIncrement = 0;
                 selectedDeviceType = DeviceType.MOTOR;
@@ -171,7 +176,7 @@ public class LCHSCalibrate extends LinearOpMode {
                 // iterate over list of servos to find servo of index nth
                 if (selectedDeviceIndex > servoDevices.size() - 1) selectedDeviceIndex = 0;
                 for (int i = 0; itr.hasNext(); i++) {
-                    selectedServo = itr.next();
+                    servo = itr.next();
                     if (i == selectedDeviceIndex) break;
                 }
             } else if (selectedDeviceType == DeviceType.ANALOG_INPUT) {
@@ -182,20 +187,14 @@ public class LCHSCalibrate extends LinearOpMode {
                     analogInput = itr.next();
                     if (i == selectedDeviceIndex) break;
                 }
-            }
-
-            // ---------- Increment Value ----------
-            /*if (selectedDeviceType == DeviceType.MOTOR) {
-                if (dpadUp.isUp())     motorIncrement += 10;
-                if (dpadDown.isUp())   motorIncrement -= 10;
-                if (dpadRight.isUp())  motorIncrement += 1;
-                if (dpadLeft.isUp())   motorIncrement -= 1;
-            } else */
-            if (selectedDeviceType == DeviceType.SERVO) {
-                if (dpadUp.isUp())     servoPosition += 0.10;
-                if (dpadDown.isUp())   servoPosition -= 0.10;
-                if (dpadRight.isUp())  servoPosition += 0.01;
-                if (dpadLeft.isUp())   servoPosition -= 0.01;
+            } else if (selectedDeviceType == DeviceType.CR_SERVO) {
+                Iterator<CRServo> itr = crServoDevices.keySet().iterator();
+                // iterate over list of servos to find servo of index nth
+                if (selectedDeviceIndex > servoDevices.size() - 1) selectedDeviceIndex = 0;
+                for (int i = 0; itr.hasNext(); i++) {
+                    crServo = itr.next();
+                    if (i == selectedDeviceIndex) break;
+                }
             }
 
 
@@ -226,17 +225,32 @@ public class LCHSCalibrate extends LinearOpMode {
                 telemetry.addData("Motor Power: ", motorP);
                 telemetry.addData("Motor Position: ", motor.getCurrentPosition());
             }
-            else if (selectedServo != null && selectedDeviceType == DeviceType.SERVO) {
+            else if (servo != null && selectedDeviceType == DeviceType.SERVO) {
                 // if servo
-                selectedServo.setPosition(servoPosition);
+                if (dpadUp.isUp())     servoPosition += 0.10;
+                if (dpadDown.isUp())   servoPosition -= 0.10;
+                if (dpadRight.isUp())  servoPosition += 0.01;
+                if (dpadLeft.isUp())   servoPosition -= 0.01;
+
+                servo.setPosition(servoPosition);
                 telemetry.addData("(Dpad)", "Increment Value [up:+0.10, down -0.10, right:+0.01, down: -0.01]");
-                telemetry.addData("Servo Name: ", servoDevices.get(selectedServo));
+                telemetry.addData("Servo Name: ", servoDevices.get(servo));
                 telemetry.addData("Servo Position Value: ", "%.2f", servoPosition);
             }
             else if (analogInput != null && selectedDeviceType == DeviceType.ANALOG_INPUT) {
                 // if analogInput
                 telemetry.addData("Analog Input Name: ", analogInputDevices.get(analogInput));
                 telemetry.addData("Analog Input Voltage: ", analogInput.getVoltage());
+            }
+            else if (crServo != null && selectedDeviceType == DeviceType.CR_SERVO) {
+                // if crServo
+
+                // USING JUST POWER
+                double crServoP = gamepad1.right_trigger - gamepad1.left_trigger;
+                crServo.setPower(crServoP);
+
+                telemetry.addData("CRServo Name: ", crServoDevices.get(crServo));
+                telemetry.addData("CRServo Power: ", crServoP);
             }
             else {
                 // if not selected, add instructions

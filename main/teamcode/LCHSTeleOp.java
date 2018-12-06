@@ -73,7 +73,6 @@ public class LCHSTeleOp extends LinearOpMode {
 
     private static final double TURN_SENSITIVITY = 0.5;
     private static final double BOOM_SENSITIVITY = 0.5;
-    private static final double TILT_SENSITIVITY = 1.0;
     private static final double INTAKE_SENSITIVITY = 0.5;
 
     private static final double TURN_FINE_TUNE_MULT = 0.5;
@@ -88,8 +87,9 @@ public class LCHSTeleOp extends LinearOpMode {
     private static final int TILT_HOOK_POSITION = 4300;
     private static final int BOOM_HOOK_POSITION = -700;
 
-    private static final int TILT_UPPER_LIMIT = 8500;
-    private static final int TILT_LOWER_LIMIT = 0;
+    private static final double TILT_ADJUST_WEIGHT = 0.4;
+    private static final double TILT_POWER_MINIMUM = 0.8;
+
 
     @Override
     public void runOpMode() {
@@ -117,7 +117,9 @@ public class LCHSTeleOp extends LinearOpMode {
             double leftFrontP;
             double rightBackP;
             double leftBackP;
-            double intakeP;
+            //double intakeP;
+            double intakePL;
+            double intakePR;
 
             // boom correction
             int targetBoomPos = 0;
@@ -131,7 +133,7 @@ public class LCHSTeleOp extends LinearOpMode {
             boolean endGame = false;
 
             /****************************************************
-             * Accel correctioin hack
+             * Accel correction hack
              */
             double accelSum = 0.0;
             double strafeAccel = 0.0;
@@ -152,8 +154,6 @@ public class LCHSTeleOp extends LinearOpMode {
 
                 robot.boom.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
                 robot.tilt.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-                robot.intakeLeft.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-                robot.intakeRight.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
 
                 /* When the right stick on the game controller is pushed forward,
                  gamepad.right_stick_y returns a negative number. The left motor
@@ -193,10 +193,14 @@ public class LCHSTeleOp extends LinearOpMode {
                 double boom = gamepad2.left_stick_y * BOOM_SENSITIVITY;
                 double tilt = -gamepad2.right_stick_y;
 
-                double intake = gamepad2.right_trigger * INTAKE_SENSITIVITY;
-                double outtake = gamepad2.left_trigger * INTAKE_SENSITIVITY;
-                boolean gateOpen = gamepad2.left_bumper;
-                boolean gateClose = gamepad2.right_bumper;
+                //double intake = gamepad2.right_trigger * INTAKE_SENSITIVITY;
+                //double outtake = gamepad2.left_trigger * INTAKE_SENSITIVITY;
+
+                // 12/5/2018 intake is now servos; 0.5 is stay; over 0.5 is cw; under 0.5 is ccw
+                double intakeL = gamepad2.left_trigger * INTAKE_SENSITIVITY;
+                double intakeR = gamepad2.right_trigger * INTAKE_SENSITIVITY;
+                double outtakeL = gamepad2.left_bumper ? (1.0 * INTAKE_SENSITIVITY) : 0.0;
+                double outtakeR = gamepad2.right_bumper ? (1.0 * INTAKE_SENSITIVITY) : 0.0;
 
                 boolean hookLock = gamepad2.a;
                 boolean hookUnlock = gamepad2.b;
@@ -216,13 +220,13 @@ public class LCHSTeleOp extends LinearOpMode {
                         /*******************************************************
                          * Strafe correction hack  --Dennis 11/22/18
                          */
-                        if(driveY != 0.0) {
+                        if (driveY != 0.0) {
                             strafeAccel = imu.getLinearAcceleration().xAccel;
                             double accelIntegratedGain = 0.03;
                             double strafeProportionalGain = 0.3;
                             accelSum = accelSum + strafeAccel * accelIntegratedGain;
                             driveX = driveX + ((strafeProportionalGain * strafeAccel) + (accelSum));
-                        }else{
+                        } else {
                             accelSum = 0.0;
                         }
                         /********************************************************
@@ -259,11 +263,12 @@ public class LCHSTeleOp extends LinearOpMode {
 
 
                 // ---------- Calculate Intake Power ----------
-                intakeP = Range.clip(intake - outtake, -1.0, 1.0);
+                intakePL = Range.clip(intakeL - outtakeL, -1.0, 1.0);
+                intakePR = Range.clip(intakeR - outtakeR, -1.0, 1.0);
 
                 // Send calculated power to intake motors
-                robot.intakeLeft.setPower(intakeP);
-                robot.intakeRight.setPower(intakeP);
+                robot.intakeLeft.setPower(intakePL);
+                robot.intakeRight.setPower(intakePR);
 
 
 
@@ -298,23 +303,15 @@ public class LCHSTeleOp extends LinearOpMode {
                     // Calculate needed power adjust depending on whether going with/against gravity
                     int currentTilt = robot.tilt.getCurrentPosition();
                     int clickDistanceToVertical = Math.abs(LCHSHardwareMap.TILT_VERTICAL_POSITION - currentTilt);
-                    //int tiltRange = Math.abs(TILT_UPPER_LIMIT - TILT_LOWER_LIMIT);
                     boolean goingUp = (tilt > 0.0 && currentTilt < LCHSHardwareMap.TILT_VERTICAL_POSITION) ||
                                       (tilt < 0.0 && currentTilt > LCHSHardwareMap.TILT_VERTICAL_POSITION);
-                    /*
-                    if (goingUp && clickDistanceToVertical > tiltRange * 0.02) { // further than 2% from vertical
-                        if (clickDistanceToVertical > tiltRange * 0.3) tiltPowerAdjustMultiplier = 1.0;
-                        else if (clickDistanceToVertical > tiltRange * 0.1) tiltPowerAdjustMultiplier = 0.8;
-                        else tiltPowerAdjustMultiplier = 0.6;
-                    } else tiltPowerAdjustMultiplier = 0.5; // else going down, low power
-                    */
 
                     if (goingUp) {
-                        //**
-                        tiltPowerAdjustMultiplier = clickDistanceToVertical/LCHSHardwareMap.TILT_VERTICAL_POSITION * TILT_SENSITIVITY;
-                    } else tiltPowerAdjustMultiplier = 0.6; // else going down, low power
+                        tiltPowerAdjustMultiplier = clickDistanceToVertical/LCHSHardwareMap.TILT_VERTICAL_POSITION
+                                * TILT_ADJUST_WEIGHT + TILT_POWER_MINIMUM;
+                    } else tiltPowerAdjustMultiplier = TILT_POWER_MINIMUM; // else going down, low power
 
-                    robot.tilt.setPower(tilt * tiltPowerAdjustMultiplier);
+                    robot.tilt.setPower(Range.clip(tilt * tiltPowerAdjustMultiplier, -1.0, 1.0));
                 }
 
                 if (liftUpL > 0.0 && liftUpR > 0.0) { // give Driver 1 tilt control to "lower" boom for hooking
@@ -348,17 +345,6 @@ public class LCHSTeleOp extends LinearOpMode {
                 if (hookLock) robot.hookServo.setPosition(LCHSHardwareMap.HOOK_SERVO_CLOSED);
                 else if (hookUnlock) robot.hookServo.setPosition(LCHSHardwareMap.HOOK_SERVO_OPEN);
 
-                // ---------- Gate Servos Open/Close ----------
-                if (gateOpen) {
-                    robot.gateRight.setPosition(LCHSHardwareMap.GATE_RIGHT_SERVO_OPEN);
-                    robot.gateLeft.setPosition(LCHSHardwareMap.GATE_LEFT_SERVO_OPEN);
-                } else if (gateClose) {
-                    robot.gateRight.setPosition(LCHSHardwareMap.GATE_RIGHT_SERVO_CLOSED);
-                    robot.gateLeft.setPosition(LCHSHardwareMap.GATE_LEFT_SERVO_CLOSED);
-                }
-
-
-
                 //======================================================================================
 
                 // Show drive data on driver station phone
@@ -371,6 +357,10 @@ public class LCHSTeleOp extends LinearOpMode {
                 telemetry.addData("Driver 1 Tilt Control (liftUp)", liftUpR);
                 telemetry.addData("Gyro Assist On?", gyroAssist);
                 telemetry.addData("Accel Sum",accelSum);
+                telemetry.addData("intake left", intakeL);
+                telemetry.addData("outtake left", outtakeL);
+                telemetry.addData("intake power left", intakePL);
+
                 telemetry.update();
 
             }
