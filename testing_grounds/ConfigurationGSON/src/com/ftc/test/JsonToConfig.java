@@ -1,7 +1,7 @@
 package com.ftc.test;
 
 /**
- * @author Trinity Chung
+ * @author trinity
  *
  */
 
