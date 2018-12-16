@@ -7,3 +7,4 @@ Instead of reading a text file with extremely long lines, word by word, a better
 
 
 `12/3/2018` First concept build complete
+`12/16/2018` Using Strings instead of Object
