@@ -1,7 +1,7 @@
 /**
  * 
  */
-package com.ftc.test;
+package net.lcec.ftc.stringy;
 
 import java.util.List;
 
@@ -15,10 +15,8 @@ public class LeftCoop {
 	// public void runOpMode() throws InterruptedException {
 	public static void main(String[] args) {
 		
-		String configFilePath = System.getProperty("user.dir") + "/src/com/ftc/test/robotConfig.json";
-		
 		try {
-			Configuration config = new Configuration(configFilePath);
+			Configuration config = new Configuration(Configuration.filePath);
 
 			// WOULD HAVE
 			//Auto runAuto = new Auto(config.opModes.);
@@ -29,6 +27,8 @@ public class LeftCoop {
 			for (Command step : steps) {
 				step.execute(true);
 			}
+			
+			System.out.println("DONE");
 			
 		} catch (Exception ex) {
 			ex.printStackTrace();

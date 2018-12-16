@@ -1,16 +1,19 @@
-/**
- * 
- */
-package com.ftc.test;
+package net.lcec.ftc.objects;
 
 import java.util.HashMap;
 import java.util.Map;
 
-import com.ftc.test.Sample;
+import net.lcec.ftc.objects.Sample;
 
 /**
+ * <h1>Command</h1>
+ * This version uses <code>Object<code>s for the <code>properties<code> values.
+ * The result is a more intuitive structure, but with more uncertainty regarding
+ * the actual/intended type of a requested property value.  Each property value
+ * has to be casted before using.
+ *  
  * @author trinity
- *
+ *   
  */
 public class Command {
 	

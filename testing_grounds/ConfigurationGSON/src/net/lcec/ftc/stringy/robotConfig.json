@@ -1,0 +1,71 @@
+{
+// hi, am a comment
+  "LEFT_COOP": [
+    {
+      "command": "land",
+      "properties": {
+        "tilt_target": {
+        	"value": 2200,
+        	"type": "int"
+        }
+      }
+    },
+    {
+      "command": "turn",
+      "properties": {
+        "angle": {
+        	"value": 90.0,
+        	"type": "double"
+        },
+        "power": {
+        	"value": "0.5",
+        	"type": "double"
+        }
+      }
+    },
+    {
+      "command": "sample_crater",
+      "properties": {
+        "left": {
+          "postRT": "24.0",
+          "knock": "12.0",
+          "turn": "0.1"
+        },
+        "center": {
+          "postRT": "24.0",
+          "knock": "12.0",
+          "turn": "0.1"
+        },
+        "right": {
+          "postRT": "24.0",
+          "knock": "12.0",
+          "turn": "0.1"
+        }
+      }
+    }
+  ],
+  "RIGHT_COOP": [
+    {
+      "command": "land",
+      "properties": {
+        "tilt_target": {
+        	"value": "2200",
+        	"type": "int"
+        }
+      }
+    },
+    {
+      "command": "turn",
+      "properties": {
+        "angle": {
+        	"value": "90.0",
+        	"type": "double"
+        },
+        "power": {
+        	"value": "0.5",
+        	"type": "double"
+        }
+      }
+    }
+  ]
+}

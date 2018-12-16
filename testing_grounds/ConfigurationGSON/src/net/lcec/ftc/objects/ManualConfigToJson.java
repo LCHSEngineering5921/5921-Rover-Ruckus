@@ -1,17 +1,20 @@
-package com.ftc.test;
+package net.lcec.ftc.objects;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import com.ftc.test.Configuration;
+import net.lcec.ftc.objects.Configuration;
 
 /**
+ * <h1>Manually created Configuration into JSON format</h1>
+ * This creates a Configuration object and creates a JSON format of the
+ * object using GSON.
+ * 
  * @author trinity
- *
+ *   
  */
-
 public class ManualConfigToJson {
 
 	public static void main(String[] args) {

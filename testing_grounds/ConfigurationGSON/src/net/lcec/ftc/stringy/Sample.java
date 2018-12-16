@@ -1,14 +1,16 @@
-/**
- * 
- */
-package com.ftc.test;
+package net.lcec.ftc.stringy;
 
 /**
+ * <h1>Sample</h1>
+ * This is an example class that would contain all methods relating to Sampling.
+ * This kind of structure would be ideal to refactor to.
+ * 
  * @author trinity
- *
+ *   
  */
 public class Sample {
 
+	public static final String[] SAMPLE_PARAMETERS = {"left", "center", "right"}; 
 	public static final String[] CRATER_PARAMETERS = {"turn", "postRT","knock"};
 	public static final String[] DEPOT_PARAMETERS = {"turn", "postRT", "knock", "turn_depot", "approach_depot", "turn_claim"}; 
 	

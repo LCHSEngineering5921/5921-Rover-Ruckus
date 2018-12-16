@@ -1,4 +1,4 @@
-package com.ftc.test;
+package net.lcec.ftc.objects;
 
 import java.io.FileNotFoundException;
 import java.io.FileReader;
@@ -14,21 +14,17 @@ import com.google.gson.JsonIOException;
 import com.google.gson.JsonSyntaxException;
 
 /**
+ * <h1>Configuration</h1>
+ * The configuration contains a list of opModes, each of which contains a list of commands,
+ * each of which contains properties.  This version does not allow comments.
+ *  
  * @author trinity
- *
- * Configuration
- *   - opModes = Map<String, List<Command>>
- *   - Command
- *       - properties = Map<String, Object>
- *       
- * TODO: use maps instead of lists
- * to achieve robotConfigIdeal.json
- *
+ *   
  */
-
 public class Configuration {
-	
-	Map<String, List<Command>> opModes;
+
+	public static final String filePath = System.getProperty("user.dir") + "/src/net/lcec/ftc/objects/robotConfig.json";
+	public Map<String, List<Command>> opModes;
 
 	//--------- CONSTRUCTORS ----------
 	public Configuration() {
