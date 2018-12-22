@@ -81,7 +81,7 @@ public class LCHSCalibrate extends LinearOpMode {
         telemetry.update();
 
         // Setup hardware map
-        robot = new LCHSHardwareMap(hardwareMap, true);
+        robot = new LCHSHardwareMap(hardwareMap, true, true);
 
         // Add in our devices
         LinkedHashMap<DcMotor, String> motorDevices = new LinkedHashMap<>();
@@ -97,8 +97,6 @@ public class LCHSCalibrate extends LinearOpMode {
         motorDevices.put(robot.boom, "Boom Extend Motor");
         motorDevices.put(robot.tilt, "Boom Tilt Motor");
         servoDevices.put(robot.hookServo, "Hook Servo");
-        servoDevices.put(robot.gateLeft, "Left Intake Gate Servo");
-        servoDevices.put(robot.gateRight, "Right Intake Gate Servo");
         crServoDevices.put(robot.intakeLeft, "Left Intake Motor");
         crServoDevices.put(robot.intakeRight, "Right Intake Motor");
 

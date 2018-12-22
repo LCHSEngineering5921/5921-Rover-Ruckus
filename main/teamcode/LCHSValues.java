@@ -3,14 +3,13 @@ package org.firstinspires.ftc.teamcode;
 public class LCHSValues {
 
     public enum Alliance {
-        BLUE, RED
+        BLUE, RED, UNKNOWN
     }
 
     // For each autonomous OpMode registered on the Robot Controller phone there
     // must a value in the enum OpMode.
     public enum OpMode {
-        RIGHT_SOLO, LEFT_SOLO, RIGHT_COOP, LEFT_COOP, TEST
-        // RIGHT_MIN, RIGHT_MAX, LEFT_MIN, LEFT_MAX, TEST
+        RIGHT_SOLO, RIGHT_COOP, LEFT_COOP, LEFT_SOLO, TEST
     }
 
     public enum MineralVisionSystem {
@@ -18,7 +17,7 @@ public class LCHSValues {
     }
 
     public enum Mineral {
-        GOLD, SILVER, NONE
+        GOLD, SILVER, UNKNOWN
     }
 
     enum MineralPosition {

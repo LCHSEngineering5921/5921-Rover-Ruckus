@@ -14,6 +14,10 @@ import android.os.Environment;
 
 import com.qualcomm.robotcore.util.RobotLog;
 
+import org.firstinspires.ftc.robotcore.external.navigation.VuforiaLocalizer;
+import org.firstinspires.ftc.robotcore.external.navigation.VuforiaTrackable;
+import org.firstinspires.ftc.robotcore.external.navigation.VuforiaTrackables;
+import org.opencv.android.OpenCVLoader;
 import org.opencv.core.Mat;
 import org.opencv.core.Core;
 import org.opencv.imgcodecs.Imgcodecs;
@@ -28,14 +32,19 @@ import org.opencv.imgproc.Imgproc;
 import org.opencv.imgproc.Moments;
 
 // Use OpenCV to analyze an image from the camera and detect the gold mineral.
-class MineralImageProcessing {
+class LCHSAutoVisionOCV {
 
-    private static final String TAG = "MineralImage";
+    private static final String TAG = "LCHSAutoVisionOCV";
     private static final SimpleDateFormat dateFormat = new SimpleDateFormat("yyyyMMddHHmmss");
     private File picturesDir;
     private String picturesPath;
     private static final String imageFilePrefix = "Image";
+    private boolean debugVerbose = false;
 
+    // Object for Vuforia.
+    LCHSAutoVuforia autoVuforia;
+
+    // OpenCV values.
     // The following constants were determined via the eclipse test project for image
     // processing OpenCVObjectRecognition.
 
@@ -63,10 +72,18 @@ class MineralImageProcessing {
     private static final double maxRatioWH = 1.5;
     private static final double maxRatioHW = 1.5;
 
-    public MineralImageProcessing() {
-        // 2018 - 2019
-        // The Motorola rear-facing cameras returns the image in landscape orientation.
-        // This is what we want.
+    // Initialize the OpenCV library.
+    //** PUT into LCHSAutoVisionOCV
+    private static boolean openCVInitialized = false;
+
+    static {
+        if (OpenCVLoader.initDebug())
+            openCVInitialized = true;
+    }
+
+    public LCHSAutoVisionOCV(LCHSAutoVuforia pAutoVuforia, boolean pDebugVerbose) {
+        autoVuforia = pAutoVuforia;
+        debugVerbose = pDebugVerbose;
 
         picturesDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES);
         try {
@@ -75,14 +92,52 @@ class MineralImageProcessing {
             throw new AutonomousRobotException(TAG, "Error accessing the PICTURES directory"
                     + iox.getMessage());
         }
+
+        // A failure in OpenCV initialization will prevent us from recognizing
+        // the gold mineral sample, but do not treat this as fatal.
+        if (!openCVInitialized)
+            RobotLog.dd(TAG, "Failure in OpenCV initialization");
     }
 
-    public boolean findGold(Bitmap pLandscapeBitmap, LCHSValues.MineralPosition pMineralPosition) {
+    public boolean findGoldMineralOpenCV(LCHSValues.MineralPosition pMineralPosition) throws InterruptedException {
+
+        RobotLog.dd(TAG, "In findGoldMineralOpenCV");
+        List<Bitmap> vuforiaImages = autoVuforia.getVuforiaImages();
+
+        int imageCollectionSize = vuforiaImages.size();
+        RobotLog.dd(TAG, "Got " + imageCollectionSize + " images from Vuforia");
+        if (imageCollectionSize == 0)
+            return false; // don't crash
+
+        // Get the last image in the collection.
+        Bitmap oneCameraImage = vuforiaImages.get(--imageCollectionSize);
+
+        // If in TEST mode write all images out to a file.
+        if (debugVerbose) {
+            String fileDate = dateFormat.format(new Date());
+            for (int imX = 0; imX < vuforiaImages.size(); imX++) {
+                // Append image index number to the date
+                writeImageFileFromBitmap(vuforiaImages.get(imX), fileDate + "_" + Integer.toString(imX));
+            }
+        }
+
+        RobotLog.dd(TAG, "Using the camera image at index " + imageCollectionSize);
+        RobotLog.dd(TAG, "Looking for a gold mineral at position " + pMineralPosition);
+        boolean retVal = findGoldInImageOpenCV(oneCameraImage, pMineralPosition);
+        if (retVal)
+            RobotLog.dd(TAG, "Found a gold mineral");
+        else
+            RobotLog.dd(TAG, "Did not find a gold mineral");
+        return retVal;
+    }
+
+
+    private boolean findGoldInImageOpenCV(Bitmap pLandscapeBitmap, LCHSValues.MineralPosition pMineralPosition) {
 
         boolean retVal = false;
 
         // Write the bitmap image out to a jpeg file.
-        RobotLog.dd(TAG, "Entered MineralImageProcessing.findGold()");
+        RobotLog.dd(TAG, "Entered LCHSAutoVisionOCV.findGoldInImageOpenCV()");
         String fileDate = dateFormat.format(new Date());
         writeImageFileFromBitmap(pLandscapeBitmap, fileDate);
 
@@ -284,5 +339,7 @@ class MineralImageProcessing {
                     + error.getMessage());
         }
     }
+
+
 }
 

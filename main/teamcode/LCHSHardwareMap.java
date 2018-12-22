@@ -5,6 +5,9 @@ package org.firstinspires.ftc.teamcode;
  * Last edited by Trinity on 11/7/2018
  */
 
+import com.qualcomm.robotcore.hardware.ColorSensor;
+import com.qualcomm.robotcore.hardware.DcMotorSimple;
+import com.qualcomm.robotcore.hardware.DistanceSensor;
 import com.qualcomm.robotcore.util.RobotLog;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.HardwareMap;
@@ -31,26 +34,25 @@ public class LCHSHardwareMap {
     CRServo intakeLeft;
     CRServo intakeRight;
 
-    //Servo gateLeft; //** TODO: remove gate servos
-    //Servo gateRight;
     Servo hookServo;
 
-    // AnalogInput tiltSwitch;
+    // Distance sensor for wall tracking.
+    DistanceSensor sensorRange;
+    DistanceSensor sensorRangeCrater;
+
+    // Color sensor for detecting the depot boundary.
+    ColorSensor colorSensor;
 
     BNO055IMU imu; // Adafruit (Bosch) gyro
 
     public static final double HOOK_SERVO_OPEN = 0.8;
     public static final double HOOK_SERVO_CLOSED = 0.4;
-    public static final double GATE_LEFT_SERVO_OPEN = 0.5;
-    public static final double GATE_RIGHT_SERVO_OPEN = 0.5;
-    public static final double GATE_LEFT_SERVO_CLOSED = 0.7;
-    public static final double GATE_RIGHT_SERVO_CLOSED = 0.3;
 
     public static final int TILT_POS_AFTER_GRAVITY = 2200;
     public static final int TILT_POS_ROBOT_IS_LEVEL = 3700;
     public static final int TILT_VERTICAL_POSITION = 4250;
 
-    LCHSHardwareMap(HardwareMap hwm, boolean pThrowOnIMUInitializationError) {
+    LCHSHardwareMap(HardwareMap hwm, boolean pInitializeIMU, boolean pThrowOnIMUInitializationError) {
         hwMap = hwm;
 
         // Initialize the hardware variables. Note that the strings used here as parameters
@@ -78,9 +80,13 @@ public class LCHSHardwareMap {
         // Servos
         hookServo = hwMap.servo.get("hook");
 
-        // Analog Input
-        // tiltSwitch = hwMap.analogInput.get("tilt_switch");
+       // DistanceSensor for wall tracking.
+        sensorRange = hwMap.get(DistanceSensor.class, "sensor_range");
+        sensorRangeCrater = hwMap.get(DistanceSensor.class, "sensor_range_crater");
 
+        // Color sensor for detecting the depot boundary
+        // get a reference to our ColorSensor object.
+        colorSensor = hwMap.get(ColorSensor.class, "sensor_color");
 
         // 2018 - 2019
         // The leftFront motor when set to FORWARD turns clockwise with
@@ -100,7 +106,7 @@ public class LCHSHardwareMap {
 
         // CRServos
         intakeLeft.setDirection(CRServo.Direction.FORWARD);
-        intakeRight.setDirection(CRServo.Direction.FORWARD);
+        intakeRight.setDirection(CRServo.Direction.REVERSE);
 
         // Servos
         hookServo.setDirection(Servo.Direction.FORWARD);
@@ -116,27 +122,35 @@ public class LCHSHardwareMap {
         hookServo.setPosition(HOOK_SERVO_CLOSED);
 
 
+        // 2018-19 We've seen IMU initialization problems (confirmed on the FTC forum)
+        // when we initialize the IMU in Autonomous and then again in TeleOp. Since the
+        // drivers say that they're not using PID control in TeleOp we can just skip
+        // the initialization of the IIMU in this mode instead of looking for another
+        // solution such as a static variable as suggested on the forum.
+
         // Initialize the IMU
-        imu = hwMap.get(BNO055IMU.class, "imu");
+        if (pInitializeIMU) {
+            imu = hwMap.get(BNO055IMU.class, "imu");
 
-        BNO055IMU.Parameters parameters = new BNO055IMU.Parameters();
-        parameters.angleUnit = BNO055IMU.AngleUnit.DEGREES;
-        parameters.loggingEnabled = true;
-        parameters.loggingTag = "LCHS IMU init";
-        parameters.calibrationDataFile = "AdafruitIMUCalibration.json";
+            BNO055IMU.Parameters parameters = new BNO055IMU.Parameters();
+            parameters.angleUnit = BNO055IMU.AngleUnit.DEGREES;
+            parameters.loggingEnabled = true;
+            parameters.loggingTag = "LCHS IMU init";
+            parameters.calibrationDataFile = "AdafruitIMUCalibration.json";
 
-        RobotLog.dd(TAG, "Call IMU initialization");
-        imu.initialize(parameters);
-        RobotLog.dd(TAG, "Return from IMU initialization");
+            RobotLog.dd(TAG, "Call IMU initialization");
+            imu.initialize(parameters);
+            RobotLog.dd(TAG, "Return from IMU initialization");
 
-        // 12/30/17 The ftc library internally retries the IMU if the status is not RUNNING_FUSION
-        // so remove the retries here.
-        BNO055IMU.SystemStatus localIMUStatus = imu.getSystemStatus();
-        RobotLog.dd(TAG, "imu status after init " + localIMUStatus);
-        if (localIMUStatus != BNO055IMU.SystemStatus.RUNNING_FUSION) {
-            imu = null;
-            if (pThrowOnIMUInitializationError)
-                throw new AutonomousRobotException(TAG, "Failed to initialize IMU");
+            // 12/30/17 The ftc library internally retries the IMU if the status is not RUNNING_FUSION
+            // so remove the retries here.
+            BNO055IMU.SystemStatus localIMUStatus = imu.getSystemStatus();
+            RobotLog.dd(TAG, "imu status after init " + localIMUStatus);
+            if (localIMUStatus != BNO055IMU.SystemStatus.RUNNING_FUSION) {
+                imu = null;
+                if (pThrowOnIMUInitializationError)
+                    throw new AutonomousRobotException(TAG, "Failed to initialize IMU");
+            }
         }
     }
 }

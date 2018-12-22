@@ -64,7 +64,9 @@ public class LCHSTeleOp extends LinearOpMode {
     private LCHSHardwareMap robot = null;
 
     // The IMU sensor object
-    BNO055IMU imu;
+    // 2018-19 Do not use IMU in TeleOp because of initialization problems.
+    // See notes in LCHSHardware.
+    // BNO055IMU imu;
 
     //===============================================================================
 
@@ -72,8 +74,6 @@ public class LCHSTeleOp extends LinearOpMode {
     private ElapsedTime runtime = new ElapsedTime();
 
     private static final double TURN_SENSITIVITY = 0.5;
-    private static final double BOOM_SENSITIVITY = 0.5;
-    private static final double INTAKE_SENSITIVITY = 0.5;
 
     private static final double TURN_FINE_TUNE_MULT = 0.5;
     private static final double STRAFE_FINE_TUNE_MULT = 0.5;
@@ -81,11 +81,14 @@ public class LCHSTeleOp extends LinearOpMode {
     private static final double TILT_AUTOMOVE_POWER = 0.5;
     private static final double BOOM_AUTOMOVE_POWER = 0.25;
 
-    private static final int TILT_OUTTAKE_POSITION = 2750;
-    private static final int BOOM_OUTTAKE_POSITION = -1800;
+    private static final double BOOM_SENSITIVITY = 0.5;
+    private static final double INTAKE_SENSITIVITY = 1.0;
 
-    private static final int TILT_HOOK_POSITION = 4300;
-    private static final int BOOM_HOOK_POSITION = -700;
+    private static final int GOLD_TILT_OUTTAKE_POSITION = 2500;
+    private static final int GOLD_BOOM_OUTTAKE_POSITION = -1500;
+
+    private static final int SILVER_TILT_OUTTAKE_POSITION = 2600;
+    private static final int SILVER_BOOM_OUTTAKE_POSITION = -1250;
 
     private static final double TILT_ADJUST_WEIGHT = 0.4;
     private static final double TILT_POWER_MINIMUM = 0.8;
@@ -95,29 +98,29 @@ public class LCHSTeleOp extends LinearOpMode {
     public void runOpMode() {
         try {
 
-              // Initialize the motors, servos and sensors
-            robot = new LCHSHardwareMap(hardwareMap, false);
+            // Initialize the motors, servos and sensors
+            robot = new LCHSHardwareMap(hardwareMap, false, false);
 
 
             // Retrieve and initialize the IMU. We expect the IMU to be attached to an I2C port
             // on a Core Device Interface Module, configured to be a sensor of type "AdaFruit IMU",
             // and named "imu".
-            imu = robot.imu; // may be null if there was an error in IMU initialization
+            // 2018-19 imu = robot.imu; // may be null if there was an error in IMU initialization
 
             // Gyro Assist Toggle
-            boolean gyroAssist = false;
+            // 2018-19 boolean gyroAssist = false;
 
-            //Get the PID controller setup
-            PID pid = new PID(0.05);
-            if (imu != null)
-                pid.setHeading(imu);
+            // 2018-19 Get the PID controller setup
+            //PID pid = new PID(0.05);
+            //if (imu != null)
+            //    pid.setHeading(imu);
 
             // Setup a variable for each driveX wheel to save power level for telemetry
             double rightFrontP;
             double leftFrontP;
             double rightBackP;
             double leftBackP;
-            //double intakeP;
+
             double intakePL;
             double intakePR;
 
@@ -126,15 +129,20 @@ public class LCHSTeleOp extends LinearOpMode {
             boolean targetBoomHold = false;
 
             // tilt correction
+            double tiltP = 0.0;
             int targetTiltPos = 0;
             boolean targetTiltHold = false;
+
+            Button tiltAutoAdjust = new Button("(X)", "Toggle Tilt Auto Adjust");
+            boolean doTiltAutoAdjust = false;
             double tiltPowerAdjustMultiplier = 1.0;
 
             boolean endGame = false;
 
-            /****************************************************
-             * Accel correction hack
-             */
+            Button hookLock = new Button("(Y)", "Toggle Hook Servo");
+            boolean hookLockIsOpen = true;
+
+            // ***** Accel correction hack *****
             double accelSum = 0.0;
             double strafeAccel = 0.0;
 
@@ -176,12 +184,15 @@ public class LCHSTeleOp extends LinearOpMode {
                 // ---------- DRIVER 1 INPUT ----------
                 double driveX = -gamepad1.right_stick_x;
                 double driveY = -gamepad1.right_stick_y;
-                double turn = gamepad1.left_stick_x * TURN_SENSITIVITY;
+
+                boolean doFullPowerTurn = gamepad1.a;
+                double turn = doFullPowerTurn ? gamepad1.left_stick_x : gamepad1.left_stick_x * TURN_SENSITIVITY;
                 if (gamepad1.right_bumper || gamepad1.left_bumper) {
                     driveX *= STRAFE_FINE_TUNE_MULT;
                     driveY *= STRAFE_FINE_TUNE_MULT;
                     turn *= TURN_FINE_TUNE_MULT;
                 }
+
                 double liftUpR = gamepad1.right_trigger; // tilt boom for hooking
                 double liftUpL = gamepad1.left_trigger; // two to confirm end game hook on
 
@@ -191,24 +202,23 @@ public class LCHSTeleOp extends LinearOpMode {
                 // ---------- DRIVER 2 INPUT ----------
                 // 11/29/18 reduce intake/outtake power; increase tilt power
                 double boom = gamepad2.left_stick_y * BOOM_SENSITIVITY;
-                double tilt = -gamepad2.right_stick_y;
 
-                //double intake = gamepad2.right_trigger * INTAKE_SENSITIVITY;
-                //double outtake = gamepad2.left_trigger * INTAKE_SENSITIVITY;
+                boolean slowTilt = gamepad2.x;
+                double tilt = slowTilt ? -gamepad2.right_stick_y * 0.5 : -gamepad2.right_stick_y;
 
-                // 12/5/2018 intake is now servos; 0.5 is stay; over 0.5 is cw; under 0.5 is ccw
                 double intakeL = gamepad2.left_trigger * INTAKE_SENSITIVITY;
                 double intakeR = gamepad2.right_trigger * INTAKE_SENSITIVITY;
                 double outtakeL = gamepad2.left_bumper ? (1.0 * INTAKE_SENSITIVITY) : 0.0;
                 double outtakeR = gamepad2.right_bumper ? (1.0 * INTAKE_SENSITIVITY) : 0.0;
 
-                boolean hookLock = gamepad2.a;
-                boolean hookUnlock = gamepad2.b;
+                tiltAutoAdjust.updateState(gamepad2.x);
+                hookLock.updateState(gamepad2.y);
 
-                boolean goToHookingPosition = gamepad2.x;
-                boolean goToOuttakePosition = gamepad2.y;
+                boolean goToSilverOutPosition = gamepad2.a;
+                boolean goToGoldOutPosition = gamepad2.b;
 
-
+/*
+2018-19 Do not use the IMU during TeleOp -- see LCHSHardware for comments.
                 // ---------- Drive with GYRO (PID) ----------
                 //Adjust heading, if necessary'
                 if (gyroAssist && (imu != null)) {
@@ -217,9 +227,7 @@ public class LCHSTeleOp extends LinearOpMode {
                     } else {
 
                         turn = pid.correctHeading(imu);
-                        /*******************************************************
-                         * Strafe correction hack  --Dennis 11/22/18
-                         */
+                        // ***** Strafe correction hack  --Dennis 11/22/18 *****
                         if (driveY != 0.0) {
                             strafeAccel = imu.getLinearAcceleration().xAccel;
                             double accelIntegratedGain = 0.03;
@@ -229,9 +237,7 @@ public class LCHSTeleOp extends LinearOpMode {
                         } else {
                             accelSum = 0.0;
                         }
-                        /********************************************************
-                         * End of strafe correction hack
-                         */
+                        // ***** End of strafe correction hack *****
                     }
                 }
                 //Turn gyro assist on or off
@@ -240,8 +246,8 @@ public class LCHSTeleOp extends LinearOpMode {
                     pid.setHeading(imu);
                 } else if (gyroTurnOff) {
                     gyroAssist = false;
-                    //turn = 0.0;
                 }
+                */
 
                 // 2018-2019
                 // When strafing, left front and right back get the same power values
@@ -269,7 +275,6 @@ public class LCHSTeleOp extends LinearOpMode {
                 // Send calculated power to intake motors
                 robot.intakeLeft.setPower(intakePL);
                 robot.intakeRight.setPower(intakePR);
-
 
 
                 // ---------- Boom control ----------
@@ -304,14 +309,18 @@ public class LCHSTeleOp extends LinearOpMode {
                     int currentTilt = robot.tilt.getCurrentPosition();
                     int clickDistanceToVertical = Math.abs(LCHSHardwareMap.TILT_VERTICAL_POSITION - currentTilt);
                     boolean goingUp = (tilt > 0.0 && currentTilt < LCHSHardwareMap.TILT_VERTICAL_POSITION) ||
-                                      (tilt < 0.0 && currentTilt > LCHSHardwareMap.TILT_VERTICAL_POSITION);
+                            (tilt < 0.0 && currentTilt > LCHSHardwareMap.TILT_VERTICAL_POSITION);
 
-                    if (goingUp) {
-                        tiltPowerAdjustMultiplier = clickDistanceToVertical/LCHSHardwareMap.TILT_VERTICAL_POSITION
-                                * TILT_ADJUST_WEIGHT + TILT_POWER_MINIMUM;
-                    } else tiltPowerAdjustMultiplier = TILT_POWER_MINIMUM; // else going down, low power
+                    if (doTiltAutoAdjust) {
+                        if (goingUp) {
+                            tiltPowerAdjustMultiplier = clickDistanceToVertical / LCHSHardwareMap.TILT_VERTICAL_POSITION
+                                    * TILT_ADJUST_WEIGHT + TILT_POWER_MINIMUM;
+                        } else
+                            tiltPowerAdjustMultiplier = TILT_POWER_MINIMUM; // else going down, low power
+                    }
 
-                    robot.tilt.setPower(Range.clip(tilt * tiltPowerAdjustMultiplier, -1.0, 1.0));
+                    tiltP = Range.clip(tilt * tiltPowerAdjustMultiplier, -1.0, 1.0);
+                    robot.tilt.setPower(tiltP);
                 }
 
                 if (liftUpL > 0.0 && liftUpR > 0.0) { // give Driver 1 tilt control to "lower" boom for hooking
@@ -324,16 +333,16 @@ public class LCHSTeleOp extends LinearOpMode {
 
                 // ---------- Go To Position Buttons ----------
                 // lazy button; goes to position for releasing mineral
-                if ((goToOuttakePosition || goToHookingPosition) && (tilt == 0.0 && boom == 0.0)) {
+                if ((goToSilverOutPosition || goToGoldOutPosition) && (tilt == 0.0 && boom == 0.0)) {
                     robot.tilt.setMode(DcMotor.RunMode.RUN_TO_POSITION);
                     robot.boom.setMode(DcMotor.RunMode.RUN_TO_POSITION);
 
-                    if (goToOuttakePosition) {
-                        robot.tilt.setTargetPosition(TILT_OUTTAKE_POSITION);
-                        robot.boom.setTargetPosition(BOOM_OUTTAKE_POSITION);
-                    } else if (goToHookingPosition) {
-                        robot.tilt.setTargetPosition(TILT_HOOK_POSITION);
-                        robot.boom.setTargetPosition(BOOM_HOOK_POSITION);
+                    if (goToSilverOutPosition) {
+                        robot.tilt.setTargetPosition(SILVER_TILT_OUTTAKE_POSITION);
+                        robot.boom.setTargetPosition(SILVER_BOOM_OUTTAKE_POSITION);
+                    } else if (goToGoldOutPosition) {
+                        robot.tilt.setTargetPosition(GOLD_TILT_OUTTAKE_POSITION);
+                        robot.boom.setTargetPosition(GOLD_BOOM_OUTTAKE_POSITION);
                     }
 
                     robot.tilt.setPower(TILT_AUTOMOVE_POWER);
@@ -341,37 +350,48 @@ public class LCHSTeleOp extends LinearOpMode {
                 }
 
 
+                // Buttons
+                // ---------- Do Tilt Auto Adjust ----------
+                if (tiltAutoAdjust.isDown()) doTiltAutoAdjust = !doTiltAutoAdjust;
+
                 // ---------- Hook Servo Lock/Unlock ----------
-                if (hookLock) robot.hookServo.setPosition(LCHSHardwareMap.HOOK_SERVO_CLOSED);
-                else if (hookUnlock) robot.hookServo.setPosition(LCHSHardwareMap.HOOK_SERVO_OPEN);
+                if (hookLock.isDown()) {
+                    if (hookLockIsOpen)
+                        robot.hookServo.setPosition(LCHSHardwareMap.HOOK_SERVO_CLOSED);
+                    else
+                        robot.hookServo.setPosition(LCHSHardwareMap.HOOK_SERVO_OPEN);
+                    hookLockIsOpen = !hookLockIsOpen;
+                }
+
 
                 //======================================================================================
 
                 // Show drive data on driver station phone
-                telemetry.addData("Motors", "left front (%.2f), right front (%.2f), left back (%.2f), right back (%.2f)", leftFrontP, rightFrontP, leftBackP, rightBackP);
-                telemetry.addData("Turn", gamepad1.left_stick_x);
 
-                // for debugging
-                telemetry.addData("Tilt Power Adjust Multiplier", tiltPowerAdjustMultiplier);
+                telemetry.addData("Driver", 1);
+                telemetry.addData("Turn", gamepad1.left_stick_x);
+                //telemetry.addData("Gyro Assist", gyroAssist ? "ON" : "OFF");
+                /*
+                telemetry.addData("LF Wheel", leftFrontP);
+                telemetry.addData("RF Wheel", rightFrontP);
+                telemetry.addData("LB Wheel", leftBackP);
+                telemetry.addData("RB Wheel", rightBackP);
+                */
+
+                telemetry.addData("Driver", 2);
+                telemetry.addData("Tilt Auto Adjust", doTiltAutoAdjust ? "ON" : "OFF");
+                telemetry.addData("Tilt Power", tiltP);
                 telemetry.addData("Tilt Position", robot.tilt.getCurrentPosition());
-                telemetry.addData("Driver 1 Tilt Control (liftUp)", liftUpR);
-                telemetry.addData("Gyro Assist On?", gyroAssist);
-                telemetry.addData("Accel Sum",accelSum);
-                telemetry.addData("intake left", intakeL);
-                telemetry.addData("outtake left", outtakeL);
-                telemetry.addData("intake power left", intakePL);
+                telemetry.addData("Boom Position", robot.boom.getCurrentPosition());
 
                 telemetry.update();
 
             }
 
-        } catch (AutonomousRobotException arx)
-
-        {
+        } catch (AutonomousRobotException arx) {
             LCHSLogFatalError.logFatalError(this, arx.getTag(), arx.getMessage());
         }
     }
-
 
 
 }

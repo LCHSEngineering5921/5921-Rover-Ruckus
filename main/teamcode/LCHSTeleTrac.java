@@ -35,7 +35,7 @@ import java.util.concurrent.locks.ReentrantLock;
 // identified by numbers starting at 1 instead of by labels.
 
 @TeleOp(name = "LCHS TeleTrac", group = "TeamCode")
-//@Disabled
+@Disabled
 public class LCHSTeleTrac extends LinearOpMode {
 
     private static final String TAG = "LCHS TeleTrac";
@@ -86,7 +86,7 @@ public class LCHSTeleTrac extends LinearOpMode {
                 unrestrictedTest = true;
 
             // Initialize the motors, servos and sensors
-            robot = new LCHSHardwareMap(hardwareMap, true);
+            robot = new LCHSHardwareMap(hardwareMap, true, true);
 
             robot.leftFront.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
             robot.rightFront.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
@@ -221,7 +221,7 @@ public class LCHSTeleTrac extends LinearOpMode {
                                 greatestEncoderValue = sortedEncoderValues.get(0); // lowest negative
 
                             // Convert encoder clicks to inches and log the value;
-                            double inchesMoved = greatestEncoderValue / LCHSAuto.COUNTS_PER_INCH;
+                            double inchesMoved = greatestEncoderValue / LCHSAutoMotion.COUNTS_PER_INCH;
                             RobotLog.dd(TAG, "Movement in inches: " + inchesMoved);
                         } else if (zeroEncoderCount == 4)
                             RobotLog.dd(TAG, "All 4 encoder values are 0");

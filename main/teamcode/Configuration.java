@@ -58,40 +58,49 @@ public class Configuration {
         TILT, // parameters: <int clicks for tilt motor>
         TILT_WAIT, // parameters: <none>
         CLAIM, // parameters: <(int> clicks for boom target position>
+        TORCH, // parameters: see parameter identifiers below
+        VUFORIA, // parameters: see Vuforia parameter identifiers below
         VISION, // parameters: <(enum) LCHSValues.MineralVisionSystem>
         FIND_GOLD_OPENCV, // parameters: <enum value LEFT, CENTER, or RIGHT> for testing
         FIND_GOLD_TENSORFLOW, // parameters <none>
         SAMPLE_DEPOT, // parameters: see SAMPLE parameter identifiers below
         SAMPLE_CRATER, // parameters: see SAMPLE parameter identifiers below
         DEPOT_REMOTE, // parameters: see DEPOT_REMOTE parameter identifiers below
+        TRACK_WALL_DEPOT, // parameters: <double distance from side wall>, <double power>, <double strafe proportional coefficient>, <int failsafe timeout
+        TRACK_WALL_CRATER, // parameters: <double distance from side wall>, <double power>, <double strafe proportional coefficient>, <int failsafe timeout
         SLEEP, // parameters: <(positive int) number of milliseconds to sleep>
     }
 
     // Parameter identifiers
 
+    // Camera flash (torch) parameters
+    public static final String TORCH_ON = "on";
+    public static final String TORCH_OFF = "off";
+
+    // Vuforia parameter identifiers
+    public static final String VUFORIA_ON = "activate";
+    public static final String VUFORIA_OFF = "deactivate";
+    public static final String VUFORIA_READ = "read";
+
     // SAMPLE parameter identifiers for the three minerals.
     public static final String[] mineralPositions = {"[LEFT]", "[CENTER]", "[RIGHT]"};
 
-    // FUTURE 1: add the data type after each parameter id (which would then have to be parsed out)
-    // "incline double", "timeout int"
-    // FUTURE 2: allow for data types and multiple parameters such as "incline double timeout int"
-    // FUTURE 3: put the rules into an XML file
     // SAMPLE parameter identifiers for the red left and blue left starting positions.
-    public static final String[] craterStartParameters = {"turn", "postRT",
-            "knock", "turn_crater", "incline", "timeout"};
+    private static final String[] craterStartParameters = {"turn", "postRT", "knock", "%i"
+    };
 
     // SAMPLE parameter identifiers for the red right and blue right starting positions.
-    public static final String[] depotStartParameters = {"turn", "postRT",
-            //        "knock", "turn_depot", "approach_depot"};
-            "knock", "turn_depot", "approach_depot", "turn_claim"}; // 11/21/18 added turn_claim
+    private static final String[] depotStartParameters = {"turn", "postRT",
+            "knock", "%i", "turn_depot", "approach_depot", "turn_claim"}; // 11/21/18 added turn_claim
 
     // DEPOT_REMOTE parameter identifiers for moving the robot from the crater to the depot.
-    public static final String[] depotRemoteParameters = {"vuforia",
+    private static final String[] depotRemoteParameters = {"vuforia", "%i",
             "reverseC", "%d", "%d", // distance in inches, power
             "turnV", "%d", "%d", "%d", // angle, power, turn coefficient
             "approachV", "%d", "%d", // distance in inches, power
             "turnD", "%d", "%d", "%d", // angle, power, turn coefficient
-            "approachD", "%d", "%d"// distance in inches, power
+            "approachD", "%d", "%d",// distance in inches, power
+            "knockC", "%i" // knock contingency
     };
 
     private List<String> tokens;
@@ -324,6 +333,40 @@ public class Configuration {
                         break;
                     }
 
+                    // Control the camera flash.
+                    case TORCH: {
+                        tokenIndex++; // advance to parameter
+                        if (tokenIndex == numTokens)
+                            throw new AutonomousRobotException(TAG, "Missing parameter in choreography after: " + commandString);
+
+                        parameter = tokens.get(tokenIndex);
+                        parameters.add(parameter);
+
+                        if (!(parameter.equals(TORCH_ON) || parameter.equals(TORCH_OFF)))
+                            throw new AutonomousRobotException(TAG, "Invalid parameter in choreography after: " + commandString);
+
+                        if (!skipCommand)
+                            steps.add(new Step(command, parameters));
+                        break;
+                    }
+
+                    // Control Vuforia
+                    case VUFORIA: {
+                        tokenIndex++; // advance to parameter
+                        if (tokenIndex == numTokens)
+                            throw new AutonomousRobotException(TAG, "Missing parameter in choreography after: " + commandString);
+
+                        parameter = tokens.get(tokenIndex);
+                        parameters.add(parameter);
+
+                        if (!(parameter.equals(VUFORIA_ON) || parameter.equals(VUFORIA_OFF) || parameter.equals(VUFORIA_READ)))
+                            throw new AutonomousRobotException(TAG, "Invalid parameter in choreography after: " + commandString);
+
+                        if (!skipCommand)
+                            steps.add(new Step(command, parameters));
+                        break;
+                    }
+
                     // The vision system to use for this opmode.
                     // parameters: <(enum) LCHSValues.MineralVisionSystem>
                     case VISION: {
@@ -364,45 +407,13 @@ public class Configuration {
                         break;
                     }
 
-                    //** The parsing of SAMPLE_DEPOT, SAMPLE_CRATER, and DEPOT_REMOTE can be combined
-                    // into a single method. Pass the tokens list and the parameter array as arguments.
-                    // 12/5/18 implemented for DEPOT_REMOTE. Convert SAMPLE_DEPOT and SAMPLE_CRATER
-                    // next.
-
                     // Movements for the right starting position.
                     // The robot must turn towards a sample, detect the gold sample,
                     // advance to knock off the gold sample, turn towards the depot,
                     // and advance to the edge of the depot.
                     case SAMPLE_DEPOT: {
-                        for (int i = 0; i < mineralPositions.length; i++) {
-                            tokenIndex++;
-                            if (tokenIndex == numTokens)
-                                throw new AutonomousRobotException(TAG, "Missing parameter " + mineralPositions[i] + " after: " + commandString);
-
-                            parameter = tokens.get(tokenIndex);
-                            if (!parameter.equals(mineralPositions[i]))
-                                throw new AutonomousRobotException(TAG, "Unexpected parameter " + parameter + " after " + mineralPositions[i] + " after: " + commandString);
-
-                            // For each mineral position there are 4 parameters. //** changed to 5
-                            // A parameter identifier precedes each parameter.
-                            for (int j = 0; j < depotStartParameters.length; j++) {
-                                tokenIndex++; // advance to parameter identifier
-                                if (tokenIndex == numTokens)
-                                    throw new AutonomousRobotException(TAG, "Missing parameter " + depotStartParameters[j] + " after " + mineralPositions[i] + " after: " + commandString);
-
-                                parameter = tokens.get(tokenIndex); // parameter identifier
-                                if (!parameter.equals(depotStartParameters[j]))
-                                    throw new AutonomousRobotException(TAG, "Unexpected parameter " + parameter + " after " + mineralPositions[i] + " after: " + commandString);
-
-                                tokenIndex++; // advance to parameter value
-                                if (tokenIndex == numTokens)
-                                    throw new AutonomousRobotException(TAG, "Missing value after " + depotStartParameters[j] + " after " + mineralPositions[i] + " after: " + commandString);
-
-                                parameter = tokens.get(tokenIndex);
-                                parameters.add(parameter);
-                                Double.parseDouble(parameter); // check number format
-                            }
-                        }
+                        tokenIndex = parseTokenAndParameterPairs(commandString, tokenIndex,
+                                tokens, depotStartParameters, parameters);
 
                         if (!skipCommand)
                             steps.add(new Step(command, parameters));
@@ -414,35 +425,8 @@ public class Configuration {
                     // advance to knock off the gold sample, turn towards the crater,
                     // and advance until it reaches the incline angle.
                     case SAMPLE_CRATER: {
-                        for (int i = 0; i < mineralPositions.length; i++) {
-                            tokenIndex++;
-                            if (tokenIndex == numTokens)
-                                throw new AutonomousRobotException(TAG, "Missing parameter " + mineralPositions[i] + " after: " + commandString);
-
-                            parameter = tokens.get(tokenIndex);
-                            if (!parameter.equals(mineralPositions[i]))
-                                throw new AutonomousRobotException(TAG, "Unexpected parameter " + parameter + " after " + mineralPositions[i] + " after: " + commandString);
-
-                            // For each mineral position there are 4 parameters.
-                            // A parameter identifier precedes each parameter.
-                            for (int j = 0; j < craterStartParameters.length; j++) {
-                                tokenIndex++; // advance to parameter identifier
-                                if (tokenIndex == numTokens)
-                                    throw new AutonomousRobotException(TAG, "Missing parameter " + craterStartParameters[j] + " after " + mineralPositions[i] + " after: " + commandString);
-
-                                parameter = tokens.get(tokenIndex); // parameter identifier
-                                if (!parameter.equals(craterStartParameters[j]))
-                                    throw new AutonomousRobotException(TAG, "Unexpected parameter " + parameter + " after " + mineralPositions[i] + " after: " + commandString);
-
-                                tokenIndex++; // advance to parameter value
-                                if (tokenIndex == numTokens)
-                                    throw new AutonomousRobotException(TAG, "Missing value after " + craterStartParameters[j] + " after " + mineralPositions[i] + " after: " + commandString);
-
-                                parameter = tokens.get(tokenIndex);
-                                parameters.add(parameter);
-                                Double.parseDouble(parameter); // check number format
-                            }
-                        }
+                        tokenIndex = parseTokenAndParameterPairs(commandString, tokenIndex,
+                                tokens, craterStartParameters, parameters);
 
                         if (!skipCommand)
                             steps.add(new Step(command, parameters));
@@ -454,6 +438,48 @@ public class Configuration {
                     case DEPOT_REMOTE: {
                         tokenIndex = parseTokenAndParameterPairs(commandString, tokenIndex,
                                 tokens, depotRemoteParameters, parameters);
+
+                        if (!skipCommand)
+                            steps.add(new Step(command, parameters));
+                        break;
+                    }
+
+                    // parameters: <double distance from side wall>, <double power>, <double strafe proportional coefficient>, <int failsafe timeout
+                    case TRACK_WALL_DEPOT:
+                    case TRACK_WALL_CRATER: {
+                        tokenIndex++; // advance to parameter for distance from the side wall
+                        if (tokenIndex == numTokens)
+                            throw new AutonomousRobotException(TAG, "Missing parameter in choreography after: " + commandString);
+
+                        parameter = tokens.get(tokenIndex);
+                        parameters.add(parameter);
+                        Double.parseDouble(parameter); // check number format
+
+                        tokenIndex++; // advance to the power parameter
+                        if (tokenIndex == numTokens)
+                            throw new AutonomousRobotException(TAG, "Missing third parameter in choreography after: " + commandString);
+
+                        parameter = tokens.get(tokenIndex);
+                        parameters.add(parameter);
+                        double power = Double.parseDouble(parameter); // check number format
+                        if ((power < -1.0) || (power > 1.0))
+                            throw new AutonomousRobotException(TAG, "Power value out of range");
+
+                        tokenIndex++; // advance to the strafe proportional coefficient parameter
+                        if (tokenIndex == numTokens)
+                            throw new AutonomousRobotException(TAG, "Missing third parameter in choreography after: " + commandString);
+
+                        parameter = tokens.get(tokenIndex);
+                        parameters.add(parameter);
+                        Double.parseDouble(parameter); // check number format
+
+                        tokenIndex++; // advance to the failsafe timer parameter
+                        if (tokenIndex == numTokens)
+                            throw new AutonomousRobotException(TAG, "Missing third parameter in choreography after: " + commandString);
+
+                        parameter = tokens.get(tokenIndex);
+                        parameters.add(parameter);
+                        Integer.parseInt(parameter); // check number format
 
                         if (!skipCommand)
                             steps.add(new Step(command, parameters));
@@ -492,10 +518,10 @@ public class Configuration {
             return steps;
         }
 
-        // Generic method to parse tokens from the configuration file and expected
+        // Generic method to parse tokens from the configuration file and the expected
         // corresponding subparameters.
-        private int parseTokenAndParameterPairs(String pCommandString, int pTokenIndex,
-                                                List<String> pTokens, String[] pSubParameters, List<String> pOutputParameters) {
+        private int parseTokenAndParameterPairs(String pCommandString, int pTokenIndex, List<String> pTokens,
+                                                String[] pSubParameters, List<String> pOutputParameters) {
 
             int tokenIndex = pTokenIndex;
             int numTokens = pTokens.size();
@@ -509,19 +535,19 @@ public class Configuration {
                     System.exit(1);
                 }
 
-                // For each mineral position there 1 to n subparameters.
+                // For each mineral position there may be 1 to n subparameters.
                 // A subparameter identifier precedes each subparameter.
                 subParameterIndex = 0;
                 while (true) {
                     tokenIndex++;
-                    token = tokens.get(tokenIndex); // parameter identifier
+                    token = tokens.get(tokenIndex); // subparameter identifier
                     if (!token.equals(pSubParameters[subParameterIndex])) {
                         System.out.println("Subparameter mismatch with " + token + " after " + mineralPositions[i]
                                 + " after: " + pCommandString);
                         System.exit(1);
                     }
 
-                    tokenIndex++; // advance to parameter value
+                    tokenIndex++; // advance to subparameter value
                     if (tokenIndex == numTokens) {
                         System.out.println("Missing value after " + pSubParameters[subParameterIndex] + " after "
                                 + mineralPositions[i] + " after: " + pCommandString);
@@ -531,14 +557,14 @@ public class Configuration {
                     token = tokens.get(tokenIndex); // data value
                     // At this point "token" should contain the data associated with the current
                     // subparameter.
-                    // Look at the next subparameter to see if we should parse token as a default
+                    // Increment the subparameter index to see if we should parse "token" as a default
                     // double or if there is a format specifier.
                     subParameterIndex++;
                     if ((subParameterIndex == (pSubParameters.length))
                             || (!pSubParameters[subParameterIndex].startsWith("%"))) {
-                        pOutputParameters.add(token);
+                        pOutputParameters.add(token); // default double
                         Double.parseDouble(token); // check default number format
-                        if (subParameterIndex == (pSubParameters.length))
+                        if (subParameterIndex == pSubParameters.length)
                             break;
                         else
                             continue;
@@ -558,35 +584,35 @@ public class Configuration {
             return tokenIndex;
         }
 
-        // On entry tokenIndex should point to a value that corresponds to the
-        // format specifier that depotParameterIndex points to.
+        // On entry pTokenIndex should point to a value that corresponds to the
+        // format specifier that pSubParameterIndex points to.
 
         // Cases:
 
         // Normal --
 
         // tokens.get(tokenIndex) -> 60.0 SLEEP [next command] or <eod>
-        // depotRemoteParameters[depotParameterIndex] -> %d <eod>
+        // pSubParameters[subParameterIndex] -> %d <eod>
 
         // tokens.get(tokenIndex) -> 60.0 approachV
-        // depotRemoteParameters[depotParameterIndex] -> %d approachV
+        // pSubParameters[subParameterIndex] -> %d approachV
 
         // tokens.get(tokenIndex) -> 60.0 1.0 ... SLEEP [next command] or <eod>
-        // depotRemoteParameters[depotParameterIndex] -> %d %d ... <eod>
+        // pSubParameters[subParameterIndex] -> %d %d ... <eod>
 
         // tokens.get(tokenIndex) -> 60.0 0.7 ... approachV
-        // depotRemoteParameters[depotParameterIndex] -> %d %d ... approachV
+        // pSubParameters[subParameterIndex] -> %d %d ... approachV
 
-        // Error --
+        // Errors -- will be detected in the caller
 
         // tokens.get(tokenIndex) -> 60.0 <eod>
-        // depotRemoteParameters[depotParameterIndex] -> %d approachV <i.e. not eod>
+        // pSubParameters[subParameterIndex] -> %d approachV <i.e. not eod>
 
         // tokens.get(tokenIndex) -> 60.0 approachV [next parameter] or SLEEP [next
         // command] or <eod>
-        // depotRemoteParameters[depotParameterIndex] -> %d %d approachV
+        // pSubParameters[subParameterIndex] -> %d %d approachV
 
-        // Call a method that will consume actual values from tokens in a line from
+        // Method that will consume actual values from tokens in a line from
         // the configuration file and all of the expected corresponding subparameter
         // identifiers and format specifiers from an array of Strings in this class.
 

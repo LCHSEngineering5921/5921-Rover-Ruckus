@@ -106,7 +106,7 @@ public class LCHSAcceleration extends LinearOpMode
         // Start the logging of measured acceleration
         imu.startAccelerationIntegration(new Position(), new Velocity(), 1000);
 
-        LCHSHardwareMap robot = new LCHSHardwareMap(hardwareMap, false);
+        LCHSHardwareMap robot = new LCHSHardwareMap(hardwareMap, false, false);
 
         // Loop and update the dashboard
         while (opModeIsActive()) {

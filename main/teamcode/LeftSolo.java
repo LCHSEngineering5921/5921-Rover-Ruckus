@@ -1,7 +1,6 @@
 package org.firstinspires.ftc.teamcode;
 
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
-import com.qualcomm.robotcore.eventloop.opmode.Disabled;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 
 @Autonomous(name = "Auto Left Solo", group = "TeamCode")
@@ -11,16 +10,19 @@ public class LeftSolo extends LinearOpMode {
 	public void runOpMode() throws InterruptedException {
 		telemetry.setAutoClear(false); // keep our messages on the driver station
 
-		// Q: Does this message appear on the driver station?
-		telemetry.addData("LCHS Auto", "LEFT_SOLO in runOpMode()");
-		telemetry.update();
-		// A: Yes
-
 		// LCHSAuto, the common class for all autonomous opmodes, needs
 		// access to the public data fields and methods in LinearOpMode.
 		try {
 			LCHSAuto runAuto = new LCHSAuto(LCHSValues.OpMode.LEFT_SOLO, this);
-			waitForStart();
+
+			// Possible fix to disconnecting phone; send telemetry (see ftc github troubleshooting)
+			//waitForStart();
+			while (!opModeIsActive() && !isStopRequested()) {
+				telemetry.addData("LCHS Auto", "LEFT_SOLO");
+				telemetry.addData("Status", "Waiting for start...");
+				telemetry.update();
+			}
+
 			runAuto.runRobot();
 		} catch (AutonomousRobotException arx) {
 			LCHSLogFatalError.logFatalError(this, arx.getTag(), arx.getMessage());
